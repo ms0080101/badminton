@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
-  <title>羽揍人球團（16人 / 2場地）</title>
+  <title>羽球排場小幫手（16人 / 2場地）</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- 手機加入主畫面設定 -->
@@ -281,10 +281,37 @@
       margin: 6px 0 2px;
       opacity: 0.8;
     }
+
+    /* 下一場預約總覽 */
+    .next-summary {
+      margin-top: 8px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      background: #f8f9fa;
+      font-size: 12px;
+      color: #343a40;
+    }
+    .next-summary-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+      font-size: 13px;
+      color: #495057;
+    }
+    .next-summary-court {
+      margin-bottom: 4px;
+    }
+    .next-summary-court-name {
+      font-weight: 500;
+      margin-right: 4px;
+    }
+    .next-summary-empty {
+      font-size: 11px;
+      color: #868e96;
+    }
   </style>
 </head>
 <body>
-  <h1>羽揍人排程小助理（16人 / 2場地）</h1>
+  <h1>羽球排場小幫手（16人 / 2場地）</h1>
   <div class="subtitle">全部手動排場，本場與下一場預約分開管理，可只更新其中一個場地</div>
 
   <div class="controls">
@@ -330,6 +357,9 @@
         若只有排一個場地，第二個場地不會顯示任何名字，只會寫「尚未排滿 4 人」。
       </div>
       <div id="boardView" class="board"></div>
+
+      <!-- 新增：下一場預約總覽（顯示在球場圖下方） -->
+      <div id="nextSummary" class="next-summary"></div>
 
       <hr style="margin: 12px 0;" />
 
@@ -389,7 +419,7 @@
 
   <script>
     const NUM_PLAYERS = 16;
-    const STORAGE_KEY = "badminton_state_v12";
+    const STORAGE_KEY = "badminton_state_v13";
 
     let players = [];
     let round = 0;          // 0 表示尚未開始
@@ -471,6 +501,7 @@
       clearManualSelects();
       updateStats();
       renderMatches(currentCourts, getQueuedCourtsAsPlayers());
+      renderNextSummary();
       resetManualNextFromQueue();
     }
 
@@ -516,6 +547,7 @@
           p.name = v || (p.id + "號");
           initManualOptions();
           resetManualNextFromQueue();
+          renderNextSummary();
           saveState();
         });
         tdName.appendChild(input);
@@ -533,6 +565,7 @@
           clearManualSelects();
           updateStats();
           resetManualNextFromQueue();
+          renderNextSummary();
           saveState();
         });
         tdActive.appendChild(chkA);
@@ -709,6 +742,41 @@
 
         board.appendChild(b);
       }
+    }
+
+    // ---------- 下一場預約總覽 ----------
+    function renderNextSummary() {
+      const box = document.getElementById("nextSummary");
+      if (!box) return;
+
+      let html = '<div class="next-summary-title">下一場預約（名單總覽）</div>';
+      let any = false;
+
+      for (let i = 0; i < 2; i++) {
+        const ids = (queuedCourts[i] || []).filter(Boolean);
+        html += '<div class="next-summary-court">';
+        html += '<span class="next-summary-court-name">' + (i + 1) + ' 號場：</span>';
+
+        if (ids.length === 4) {
+          any = true;
+          const pills = ids.map(id => {
+            const p = players.find(pl => pl.id === id);
+            const name = p ? p.name : (id + "號");
+            return '<span class="pill">' + name + '</span>';
+          }).join("");
+          html += pills;
+        } else {
+          html += '<span class="next-summary-empty">尚未預約</span>';
+        }
+
+        html += '</div>';
+      }
+
+      if (!any) {
+        html += '<div class="next-summary-empty">目前沒有任何場地排好下一場，排好後按「儲存下一場預約」即可在這裡看到。</div>';
+      }
+
+      box.innerHTML = html;
     }
 
     // ---------- 選單初始化 ----------
@@ -898,6 +966,7 @@
       renderMatches(currentCourts, getQueuedCourtsAsPlayers());
       clearManualSelects();        // 這裡也順便清空本場排場
       resetManualNextFromQueue();
+      renderNextSummary();         // 可能已經用掉預約，重新渲染
       saveState();
     }
 
@@ -940,6 +1009,7 @@
       saveState();
       resetManualNextFromQueue();
       renderMatches(currentCourts, getQueuedCourtsAsPlayers());
+      renderNextSummary();
 
       if (courtIds[0].length === 0 && courtIds[1].length === 0) {
         alert("已清除下一場預約排場。");
@@ -969,4 +1039,3 @@
   </script>
 </body>
 </html>
-
