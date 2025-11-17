@@ -285,7 +285,7 @@
 </head>
 <body>
   <h1>羽球排場小幫手（16人 / 2場地）</h1>
-  <div class="subtitle">全部手動排場，本場與下一場預約分開管理，沒有任何自動排程</div>
+  <div class="subtitle">全部手動排場，本場與下一場預約分開管理，可只更新其中一個場地</div>
 
   <div class="controls">
     <button id="manualBtn" class="secondary">✋ 套用本場排場</button>
@@ -359,7 +359,8 @@
       <h2>下一場預約排場</h2>
       <div class="note">
         想先預約下一輪的名單，可以在這裡排。<br/>
-        儲存後，上方「下一場」會顯示預約；按「下一場上場」時，會把預約的人整組搬到本場。
+        每個場地可以「0 人」或「4 人」；可以只預約 1 號場，2 號場全部留空。<br/>
+        按「下一場上場」時，只有有排滿 4 人的場地會換人。
       </div>
 
       <div id="manualNextContainer">
@@ -384,17 +385,24 @@
 
   <script>
     const NUM_PLAYERS = 16;
-    const STORAGE_KEY = "badminton_state_v9";
+    const STORAGE_KEY = "badminton_state_v10";
 
     let players = [];
     let round = 1;
     let pairCounts = {};
     let currentCourts = []; // [[player,player,player,player], ...]
-    let queuedCourts = [];  // [[id,id,id,id], ...]
+    // queuedCourts: [ [id,id,id,id] | null, [id,id,id,id] | null ]
+    let queuedCourts = [];
 
     // ---------- localStorage ----------
     function saveState() {
-      const state = { players, round, pairCounts, queuedCourts, currentCourtsIds: currentCourts.map(c => c.map(p => p.id)) };
+      const state = {
+        players,
+        round,
+        pairCounts,
+        queuedCourts,
+        currentCourtsIds: currentCourts.map(c => c.map(p => p.id))
+      };
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
     }
 
@@ -462,7 +470,7 @@
       resetManualNextFromQueue();
     }
 
-    // ---------- pair 統計 (只做記錄) ----------
+    // ---------- pair 統計 (只是記錄搭檔次數) ----------
     function pairKey(a, b) {
       const id1 = a.id < b.id ? a.id : b.id;
       const id2 = a.id < b.id ? b.id : a.id;
@@ -604,7 +612,7 @@
 
       const board = document.getElementById("boardView");
       board.innerHTML = "";
-      const maxCourts = Math.max(courts.length, nextCourts.length, 2); // 最多顯示 2 場
+      const maxCourts = Math.max(courts.length, nextCourts.length, 2); // 顯示到 2 號場
       for (let i = 0; i < maxCourts; i++) {
         const current = courts[i] || [];
         const showNextForThisCourt = (courts.length === 0) || (i < courts.length);
@@ -747,25 +755,34 @@
       const selects = Array.from(document.querySelectorAll(".manual-next-select"));
       selects.forEach(sel => (sel.value = ""));
       if (!queuedCourts || queuedCourts.length === 0) return;
-      const ids = queuedCourts.flat();
-      for (let i = 0; i < Math.min(ids.length, selects.length); i++) {
-        selects[i].value = String(ids[i]);
+      for (let i = 0; i < queuedCourts.length; i++) {
+        const ids = queuedCourts[i] || [];
+        for (let j = 0; j < ids.length && j < 4; j++) {
+          const idx = i * 4 + j;
+          if (selects[idx]) selects[idx].value = String(ids[j]);
+        }
       }
     }
 
-    // ---------- 取得 queuedCourts 的玩家版 ----------
+    // ---------- queuedCourts 轉玩家 ----------
     function getQueuedCourtsAsPlayers() {
       if (!queuedCourts || queuedCourts.length === 0) return [];
-      return queuedCourts.map(ids =>
-        ids
-          .map(id => players.find(p => p.id === id))
-          .filter(Boolean)
-      );
+      const result = [];
+      for (let i = 0; i < 2; i++) {
+        const ids = (queuedCourts[i] || []).filter(Boolean);
+        if (ids.length === 4) {
+          const courtPlayers = ids
+            .map(id => players.find(p => p.id === id))
+            .filter(Boolean);
+          result[i] = courtPlayers;
+        } else {
+          result[i] = [];
+        }
+      }
+      return result;
     }
 
-    // ---------- 按鈕邏輯 ----------
-
-    // 套用本場排場
+    // ---------- 套用本場排場 ----------
     function applyManualSchedule() {
       const selects = Array.from(document.querySelectorAll(".manual-select"));
       const chosenIds = selects.map(sel => sel.value).filter(v => v !== "");
@@ -775,24 +792,24 @@
         alert("本場排場中，同一個人被選到兩次以上。");
         return;
       }
-      if (![4, 8].includes(chosenIds.length)) {
+      if (chosenIds.length !== 4 && chosenIds.length !== 8) {
         alert("本場請排 4 或 8 個人（1 或 2 個場地）。");
         return;
       }
 
       const idToPlayer = id => players.find(p => String(p.id) === String(id));
+      const resultCourts = [];
 
       const c1 = chosenIds.slice(0, 4).map(idToPlayer).filter(Boolean);
-      const resultCourts = [];
-      if (c1.length === 4) resultCourts.push(c1);
+      if (c1.length === 4) resultCourts[0] = c1;
 
       if (chosenIds.length === 8) {
         const c2 = chosenIds.slice(4, 8).map(idToPlayer).filter(Boolean);
-        if (c2.length === 4) resultCourts.push(c2);
+        if (c2.length === 4) resultCourts[1] = c2;
       }
 
-      if (resultCourts.length === 0) {
-        alert("本場人數不足。");
+      if (!resultCourts[0]) {
+        alert("本場 1 號場人數不足 4 人。");
         return;
       }
 
@@ -807,67 +824,114 @@
       saveState();
     }
 
-    // 下一場上場（用預約的人）
+    // ---------- 下一場上場：逐場地判斷 ----------
     function nextRoundFromQueue() {
-      if (!queuedCourts || queuedCourts.length === 0) {
-        alert("沒有預約的下一場名單，請先在「下一場預約排場」選人並儲存。");
-        return;
+      const selects = Array.from(document.querySelectorAll(".manual-next-select"));
+      const idToPlayer = id => players.find(p => String(p.id) === String(id));
+
+      const newCourts = currentCourts.slice();
+      let changed = false;
+
+      for (let courtIndex = 0; courtIndex < 2; courtIndex++) {
+        // 先看 queue，有沒有 4 個 id
+        let ids = (queuedCourts[courtIndex] || []).filter(Boolean);
+
+        // 若 queue 不足 4 個，改用目前選單
+        if (ids.length !== 4) {
+          const start = courtIndex * 4;
+          const end = start + 4;
+          ids = selects.slice(start, end)
+            .map(sel => sel.value)
+            .filter(v => v !== "");
+        }
+
+        // 這個場地：0 人 => 不動
+        if (ids.length === 0) continue;
+
+        // 若不是 4 人，就視為無效
+        if (ids.length !== 4) continue;
+
+        const set = new Set(ids);
+        if (set.size !== ids.length) continue;
+
+        const courtPlayers = ids.map(idToPlayer).filter(Boolean);
+        if (courtPlayers.length !== 4) continue;
+
+        // 套用這個場地
+        newCourts[courtIndex] = courtPlayers;
+        courtPlayers.forEach(p => { if (p) p.games++; });
+        registerCourtsPairs([courtPlayers]);
+        changed = true;
+
+        // 清空這個場地的 queue & 選單
+        if (queuedCourts[courtIndex]) queuedCourts[courtIndex] = [];
+        const start = courtIndex * 4;
+        const end = start + 4;
+        selects.slice(start, end).forEach(sel => sel.value = "");
       }
-      const courtsPlayers = getQueuedCourtsAsPlayers();
-      if (courtsPlayers.length === 0 || courtsPlayers[0].length < 4) {
-        alert("預約名單不足 4 人，請檢查下一場預約排場。");
+
+      if (!changed) {
+        alert("下一場預約名單不足 4 人，或沒有任何場地排滿 4 人。");
         return;
       }
 
-      currentCourts = courtsPlayers;
-      currentCourts.flat().forEach(p => { if (p) p.games++; });
-      registerCourtsPairs(currentCourts);
-      queuedCourts = [];
+      currentCourts = newCourts;
       round++;
       renderRoundLabel();
       renderPlayers();
       updateStats();
-      renderMatches(currentCourts, []);
-      resetManualNextFromQueue();
+      renderMatches(currentCourts, getQueuedCourtsAsPlayers());
       fillManualFromCurrent(currentCourts);
+      resetManualNextFromQueue();
       saveState();
     }
 
-    // 儲存下一場預約
+    // ---------- 儲存下一場預約（可單獨各場地） ----------
     function saveNextManualSchedule() {
       const selects = Array.from(document.querySelectorAll(".manual-next-select"));
-      const chosenIds = selects.map(sel => sel.value).filter(v => v !== "");
+      const courtIds = [[], []];
 
-      if (chosenIds.length === 0) {
-        queuedCourts = [];
-        resetManualNextFromQueue();
-        renderMatches(currentCourts, []);
-        saveState();
-        alert("已清除下一場預約排場。");
+      for (let courtIndex = 0; courtIndex < 2; courtIndex++) {
+        const start = courtIndex * 4;
+        const end = start + 4;
+        const ids = selects.slice(start, end)
+          .map(sel => sel.value)
+          .filter(v => v !== "");
+
+        if (ids.length !== 0 && ids.length !== 4) {
+          alert((courtIndex + 1) + " 號場預約請排 0 或 4 個人。");
+          return;
+        }
+        courtIds[courtIndex] = ids;
+      }
+
+      // 檢查跨場地是否有重複
+      const allIds = [...courtIds[0], ...courtIds[1]];
+      const setAll = new Set(allIds);
+      if (setAll.size !== allIds.length) {
+        alert("下一場預約中，同一個人被排在兩個場地。");
         return;
       }
 
-      const set = new Set(chosenIds);
-      if (set.size !== chosenIds.length) {
-        alert("下一場預約排場中，同一個人被選到兩次以上。");
-        return;
-      }
-      if (![4, 8].includes(chosenIds.length)) {
-        alert("下一場請排 4 或 8 個人（1 或 2 個場地）。");
-        return;
+      // 套用到 queuedCourts
+      queuedCourts = [];
+      for (let i = 0; i < 2; i++) {
+        if (courtIds[i].length === 4) {
+          queuedCourts[i] = courtIds[i].slice();
+        } else {
+          queuedCourts[i] = [];
+        }
       }
 
-      const court1 = chosenIds.slice(0, 4);
-      const result = [court1];
-      if (chosenIds.length === 8) {
-        const court2 = chosenIds.slice(4, 8);
-        result.push(court2);
-      }
-      queuedCourts = result;
       saveState();
       resetManualNextFromQueue();
       renderMatches(currentCourts, getQueuedCourtsAsPlayers());
-      alert("已儲存下一場預約排場。");
+
+      if (courtIds[0].length === 0 && courtIds[1].length === 0) {
+        alert("已清除下一場預約排場。");
+      } else {
+        alert("已儲存下一場預約排場。");
+      }
     }
 
     // ---------- 事件綁定 ----------
