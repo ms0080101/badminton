@@ -737,11 +737,6 @@
         }
         b.appendChild(layoutNow);
 
-        // 下一場
-        const labelNext = document.createElement("div");
-        labelNext.className = "court-label";
-        labelNext.textContent = "下一場";
-        b.appendChild(labelNext);
 
         // ⬇ 這裡改掉：如果沒有滿 4 人，就什麼都不顯示（不再顯示「尚未排滿 4 人」）
         if (showNextForThisCourt && next.length === 4) {
@@ -1094,3 +1089,4 @@
   </script>
 </body>
 </html>
+
