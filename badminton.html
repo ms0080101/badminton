@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>羽球排場小幫手（16人 / 2場地）</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: #f5f5f5;
+    }
+    h1 {
+      font-size: 20px;
+      text-align: center;
+      margin-bottom: 12px;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-bottom: 12px;
+    }
+    button {
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      background: #2f80ed;
+      color: #fff;
+      font-size: 14px;
+    }
+    button.secondary {
+      background: #828282;
+    }
+    button:active {
+      opacity: 0.8;
+    }
+    .layout {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    @media (min-width: 900px) {
+      .layout {
+        flex-direction: row;
+        align-items: flex-start;
+      }
+    }
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    }
+    .card h2 {
+      font-size: 16px;
+      margin: 0 0 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      padding: 4px 6px;
+      border-bottom: 1px solid #eee;
+      text-align: center;
+    }
+    th {
+      background: #fafafa;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    .player-name {
+      text-align: left;
+    }
+    .match-area {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .court-card {
+      border: 1px solid #eee;
+      border-radius: 8px;
+      padding: 8px;
+    }
+    .court-title {
+      font-weight: bold;
+      margin-bottom: 4px;
+      font-size: 14px;
+    }
+    .teams {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      margin-top: 4px;
+    }
+    .pill {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: #f2f2f2;
+      font-size: 12px;
+      margin-right: 4px;
+    }
+    .manual-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 4px;
+      margin-top: 4px;
+      margin-bottom: 6px;
+      font-size: 12px;
+    }
+    select {
+      width: 100%;
+      padding: 3px 4px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      font-size: 12px;
+    }
+    .round-label {
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+    .note {
+      font-size: 11px;
+      color: #777;
+    }
+    .name-input {
+      width: 95%;
+      padding: 2px 4px;
+      font-size: 12px;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+      box-sizing: border-box;
+    }
+  </style>
+</head>
+<body>
+  <h1>羽球排場小幫手（16人 / 2場地）</h1>
+
+  <div class="controls">
+    <button id="autoBtn">自動排下一輪</button>
+    <button id="manualBtn" class="secondary">套用手動排場</button>
+    <button id="resetBtn" class="secondary">重置玩家與統計</button>
+  </div>
+
+  <div class="layout">
+    <!-- 左側：玩家狀態 -->
+    <div class="card" style="flex: 1 1 0;">
+      <h2>玩家列表（1～16號）</h2>
+      <div class="note">
+        名字欄可以輸入今天來打的名字；<br>
+        勾選「啟用」代表有來；勾「休息」代表這一輪不排進場。
+      </div>
+      <div style="max-height: 360px; overflow-y: auto; margin-top: 6px;">
+        <table>
+          <thead>
+            <tr>
+              <th>號碼</th>
+              <th class="player-name">名字（可修改）</th>
+              <th>啟用</th>
+              <th>休息</th>
+              <th>上場次數</th>
+            </tr>
+          </thead>
+          <tbody id="playerBody">
+            <!-- 動態產生 -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 右側：排場區域 -->
+    <div class="card" style="flex: 1.2 1 0;">
+      <h2>本輪排場</h2>
+      <div class="round-label" id="roundLabel">第 1 輪</div>
+      <div class="match-area" id="matchArea">
+        <!-- 自動排場結果 -->
+      </div>
+
+      <hr style="margin: 12px 0;" />
+
+      <h2>手動排場（可改人）</h2>
+      <div class="note">選好人員後按上方「套用手動排場」。重複選到同一個人系統會警告。</div>
+
+      <div id="manualContainer">
+        <div style="margin-top: 6px; font-weight: bold;">1 號場</div>
+        <div class="manual-grid" data-court="1">
+          <select class="manual-select" data-slot="1"></select>
+          <select class="manual-select" data-slot="2"></select>
+          <select class="manual-select" data-slot="3"></select>
+          <select class="manual-select" data-slot="4"></select>
+        </div>
+
+        <div style="margin-top: 6px; font-weight: bold;">2 號場</div>
+        <div class="manual-grid" data-court="2">
+          <select class="manual-select" data-slot="5"></select>
+          <select class="manual-select" data-slot="6"></select>
+          <select class="manual-select" data-slot="7"></select>
+          <select class="manual-select" data-slot="8"></select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const NUM_PLAYERS = 16;
+    const STORAGE_KEY = "badminton_state_v1";
+
+    let players = [];
+    let round = 1;
+
+    // --- 儲存 / 載入狀態 ---
+
+    function saveState() {
+      const state = { players, round };
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (e) {
+        console.warn("無法儲存到 localStorage：", e);
+      }
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return false;
+        const state = JSON.parse(raw);
+        const storedPlayers = Array.isArray(state.players) ? state.players : [];
+
+        players = [];
+        for (let i = 1; i <= NUM_PLAYERS; i++) {
+          const sp = storedPlayers.find(p => p.id === i) || {};
+          players.push({
+            id: i,
+            name: sp.name || (i + "號"),
+            active: sp.active !== undefined ? !!sp.active : true,
+            rest: !!sp.rest,
+            games: typeof sp.games === "number" && isFinite(sp.games) ? sp.games : 0
+          });
+        }
+
+        if (typeof state.round === "number" && isFinite(state.round)) {
+          round = state.round;
+        } else {
+          round = 1;
+        }
+        return true;
+      } catch (e) {
+        console.warn("讀取 localStorage 失敗，改用預設：", e);
+        return false;
+      }
+    }
+
+    // --- 初始化新的 Session ---
+
+    function setupNewSession() {
+      players = [];
+      for (let i = 1; i <= NUM_PLAYERS; i++) {
+        players.push({
+          id: i,
+          name: i + "號",
+          active: true,
+          rest: false,
+          games: 0
+        });
+      }
+      round = 1;
+      saveState();
+      renderAll();
+    }
+
+    function renderAll() {
+      renderPlayers();
+      renderRoundLabel();
+      clearMatches();
+      initManualOptions();
+    }
+
+    // --- UI Render ---
+
+    function renderPlayers() {
+      const tbody = document.getElementById("playerBody");
+      tbody.innerHTML = "";
+      players.forEach(p => {
+        const tr = document.createElement("tr");
+
+        const tdId = document.createElement("td");
+        tdId.textContent = p.id;
+        tr.appendChild(tdId);
+
+        const tdName = document.createElement("td");
+        tdName.className = "player-name";
+        const input = document.createElement("input");
+        input.type = "text";
+        input.className = "name-input";
+        input.value = p.name;
+        input.placeholder = p.id + "號";
+        input.addEventListener("input", () => {
+          const v = input.value.trim();
+          p.name = v || (p.id + "號");
+          initManualOptions();
+          saveState();
+        });
+        tdName.appendChild(input);
+        tr.appendChild(tdName);
+
+        const tdActive = document.createElement("td");
+        const activeCheckbox = document.createElement("input");
+        activeCheckbox.type = "checkbox";
+        activeCheckbox.checked = p.active;
+        activeCheckbox.addEventListener("change", () => {
+          p.active = activeCheckbox.checked;
+          if (!p.active) {
+            p.rest = false;
+          }
+          renderPlayers();
+          initManualOptions();
+          saveState();
+        });
+        tdActive.appendChild(activeCheckbox);
+        tr.appendChild(tdActive);
+
+        const tdRest = document.createElement("td");
+        const restCheckbox = document.createElement("input");
+        restCheckbox.type = "checkbox";
+        restCheckbox.checked = p.rest;
+        restCheckbox.disabled = !p.active;
+        restCheckbox.addEventListener("change", () => {
+          p.rest = restCheckbox.checked;
+          saveState();
+        });
+        tdRest.appendChild(restCheckbox);
+        tr.appendChild(tdRest);
+
+        const tdGames = document.createElement("td");
+        tdGames.textContent = p.games;
+        tr.appendChild(tdGames);
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderRoundLabel() {
+      document.getElementById("roundLabel").textContent = "第 " + round + " 輪";
+    }
+
+    function clearMatches() {
+      document.getElementById("matchArea").innerHTML =
+        "<div class='note'>尚未排場，請按「自動排下一輪」或使用下方手動排場。</div>";
+    }
+
+    function renderMatches(courts) {
+      const area = document.getElementById("matchArea");
+      area.innerHTML = "";
+      courts.forEach((courtPlayers, idx) => {
+        const card = document.createElement("div");
+        card.className = "court-card";
+
+        const title = document.createElement("div");
+        title.className = "court-title";
+        title.textContent = (idx + 1) + " 號場";
+        card.appendChild(title);
+
+        if (courtPlayers.length < 4) {
+          const info = document.createElement("div");
+          info.className = "note";
+          info.textContent = "人數不足 4 人，無法完整排組。";
+          card.appendChild(info);
+        } else {
+          const [p1, p2, p3, p4] = courtPlayers;
+          const t1 = document.createElement("div");
+          t1.className = "teams";
+          t1.innerHTML = `
+            <span>
+              <span class="pill">${p1.name}</span>
+              <span class="pill">${p2.name}</span>
+            </span>
+            <span>VS</span>
+            <span>
+              <span class="pill">${p3.name}</span>
+              <span class="pill">${p4.name}</span>
+            </span>
+          `;
+          card.appendChild(t1);
+        }
+        area.appendChild(card);
+      });
+    }
+
+    // --- 排場邏輯 ---
+
+    function autoSchedule() {
+      const available = players.filter(p => p.active && !p.rest);
+      if (available.length < 4) {
+        alert("可上場人數不足 4 人，無法排場。請檢查啟用與休息狀態。");
+        return;
+      }
+
+      // 依上場次數少的優先、再依編號
+      available.sort((a, b) => {
+        if (a.games !== b.games) return a.games - b.games;
+        return a.id - b.id;
+      });
+
+      const needed = Math.min(available.length, 8); // 最多兩場
+      const selected = available.slice(0, needed);
+
+      const courts = [];
+      if (needed >= 4) {
+        courts.push(selected.slice(0, 4));
+      }
+      if (needed >= 8) {
+        courts.push(selected.slice(4, 8));
+      }
+
+      selected.forEach(p => p.games++);
+
+      renderMatches(courts);
+      renderPlayers();
+      round++;
+      renderRoundLabel();
+      fillManualFromCurrent(courts);
+      saveState();
+    }
+
+    function initManualOptions() {
+      const selects = document.querySelectorAll(".manual-select");
+      selects.forEach(sel => {
+        const current = sel.value;
+        sel.innerHTML = "";
+        const emptyOpt = document.createElement("option");
+        emptyOpt.value = "";
+        emptyOpt.textContent = "空";
+        sel.appendChild(emptyOpt);
+
+        players.forEach(p => {
+          if (!p.active) return;
+          const opt = document.createElement("option");
+          opt.value = String(p.id);
+          opt.textContent = p.name;
+          sel.appendChild(opt);
+        });
+
+        if (current) sel.value = current;
+      });
+    }
+
+    function fillManualFromCurrent(courts) {
+      const selects = document.querySelectorAll(".manual-select");
+      selects.forEach(sel => (sel.value = ""));
+      const flat = courts.flat();
+      flat.forEach((p, index) => {
+        if (index < selects.length) {
+          selects[index].value = String(p.id);
+        }
+      });
+    }
+
+    function applyManualSchedule() {
+      const selects = Array.from(document.querySelectorAll(".manual-select"));
+      const chosenIds = selects
+        .map(sel => sel.value)
+        .filter(v => v !== "");
+
+      const set = new Set(chosenIds);
+      if (set.size !== chosenIds.length) {
+        alert("同一個人被選到兩次以上，請檢查手動排場。");
+        return;
+      }
+
+      if (chosenIds.length < 4) {
+        alert("至少要選 4 個人才能排一場。");
+        return;
+      }
+
+      const idToPlayer = id => players.find(p => String(p.id) === String(id));
+      const courts = [];
+
+      const court1 = chosenIds.slice(0, 4).map(idToPlayer).filter(Boolean);
+      if (court1.length === 4) courts.push(court1);
+
+      const court2Ids = chosenIds.slice(4, 8);
+      if (court2Ids.length === 4) {
+        const court2 = court2Ids.map(idToPlayer).filter(Boolean);
+        if (court2.length === 4) courts.push(court2);
+      }
+
+      if (courts.length === 0) {
+        alert("手動排場人數不足。");
+        return;
+      }
+
+      courts.flat().forEach(p => {
+        if (p) p.games++;
+      });
+
+      renderMatches(courts);
+      renderPlayers();
+      round++;
+      renderRoundLabel();
+      saveState();
+    }
+
+    // --- 事件綁定 & 啟動 ---
+
+    document.getElementById("autoBtn").addEventListener("click", autoSchedule);
+    document.getElementById("manualBtn").addEventListener("click", applyManualSchedule);
+    document.getElementById("resetBtn").addEventListener("click", () => {
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch (e) {
+        console.warn("清除 localStorage 失敗：", e);
+      }
+      setupNewSession();
+    });
+
+    // 啟動：先試著從 localStorage 載入，沒有就新開
+    (function start() {
+      const loaded = loadState();
+      if (!loaded) {
+        setupNewSession();
+      } else {
+        renderAll();
+      }
+    })();
+  </script>
+</body>
+</html>
