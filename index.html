@@ -334,7 +334,10 @@
       <hr style="margin: 12px 0;" />
 
       <h2>手動排場（本場）</h2>
-      <div class="note">直接在這裡選好這一輪要上場的人，按「套用本場排場」即可開始新一輪。</div>
+      <div class="note">
+        直接在這裡選好這一輪要上場的人，按「套用本場排場」。<br/>
+        每個場地可以「0 人」（不變）或「4 人」（只更新該場地）。
+      </div>
 
       <div id="manualContainer">
         <div style="margin-top: 6px; font-weight: bold;">1 號場</div>
@@ -385,14 +388,13 @@
 
   <script>
     const NUM_PLAYERS = 16;
-    const STORAGE_KEY = "badminton_state_v10";
+    const STORAGE_KEY = "badminton_state_v11";
 
     let players = [];
-    let round = 1;
+    let round = 0;          // 0 表示尚未開始
     let pairCounts = {};
     let currentCourts = []; // [[player,player,player,player], ...]
-    // queuedCourts: [ [id,id,id,id] | null, [id,id,id,id] | null ]
-    let queuedCourts = [];
+    let queuedCourts = [];  // [ [id,id,id,id] | [], [id,id,id,id] | [] ]
 
     // ---------- localStorage ----------
     function saveState() {
@@ -425,7 +427,7 @@
           });
         }
 
-        round = (typeof state.round === "number" && isFinite(state.round)) ? state.round : 1;
+        round = (typeof state.round === "number" && isFinite(state.round)) ? state.round : 0;
         pairCounts = state.pairCounts && typeof state.pairCounts === "object" ? state.pairCounts : {};
         queuedCourts = Array.isArray(state.queuedCourts) ? state.queuedCourts : [];
 
@@ -453,7 +455,7 @@
           games: 0
         });
       }
-      round = 1;
+      round = 0;
       pairCounts = {};
       currentCourts = [];
       queuedCourts = [];
@@ -470,7 +472,7 @@
       resetManualNextFromQueue();
     }
 
-    // ---------- pair 統計 (只是記錄搭檔次數) ----------
+    // ---------- 搭檔統計 ----------
     function pairKey(a, b) {
       const id1 = a.id < b.id ? a.id : b.id;
       const id2 = a.id < b.id ? b.id : a.id;
@@ -555,7 +557,12 @@
     }
 
     function renderRoundLabel() {
-      document.getElementById("roundLabel").textContent = "第 " + round + " 輪";
+      const label = document.getElementById("roundLabel");
+      if (round <= 0) {
+        label.textContent = "第 1 輪";
+      } else {
+        label.textContent = "第 " + round + " 輪";
+      }
     }
 
     function updateStats() {
@@ -566,7 +573,7 @@
       const statsBar = document.getElementById("statsBar");
       statsBar.innerHTML =
         `總人數 ${total}，啟用 ${active}，目前可上場 ${canPlay}，標記休息 ${resting}` +
-        `<span class="badge-chip">第 ${round} 輪</span>`;
+        `<span class="badge-chip">目前顯示：第 ${round <= 0 ? 1 : round} 輪</span>`;
     }
 
     function renderMatches(courts, nextCourts) {
@@ -782,49 +789,63 @@
       return result;
     }
 
-    // ---------- 套用本場排場 ----------
+    // ---------- 套用本場排場：逐場地處理 ----------
     function applyManualSchedule() {
       const selects = Array.from(document.querySelectorAll(".manual-select"));
-      const chosenIds = selects.map(sel => sel.value).filter(v => v !== "");
-
-      const set = new Set(chosenIds);
-      if (set.size !== chosenIds.length) {
-        alert("本場排場中，同一個人被選到兩次以上。");
-        return;
-      }
-      if (chosenIds.length !== 4 && chosenIds.length !== 8) {
-        alert("本場請排 4 或 8 個人（1 或 2 個場地）。");
-        return;
-      }
-
       const idToPlayer = id => players.find(p => String(p.id) === String(id));
-      const resultCourts = [];
 
-      const c1 = chosenIds.slice(0, 4).map(idToPlayer).filter(Boolean);
-      if (c1.length === 4) resultCourts[0] = c1;
+      const newCourts = currentCourts.slice();
+      let updatedAny = false;
 
-      if (chosenIds.length === 8) {
-        const c2 = chosenIds.slice(4, 8).map(idToPlayer).filter(Boolean);
-        if (c2.length === 4) resultCourts[1] = c2;
+      for (let courtIndex = 0; courtIndex < 2; courtIndex++) {
+        const start = courtIndex * 4;
+        const end = start + 4;
+        const ids = selects.slice(start, end)
+          .map(sel => sel.value)
+          .filter(v => v !== "");
+
+        if (ids.length === 0) {
+          // 這個場地不變
+          continue;
+        }
+        if (ids.length !== 4) {
+          alert((courtIndex + 1) + " 號場本場排場請排 0 或 4 個人。");
+          return;
+        }
+        const set = new Set(ids);
+        if (set.size !== ids.length) {
+          alert((courtIndex + 1) + " 號場本場排場有重複的人。");
+          return;
+        }
+
+        const courtPlayers = ids.map(idToPlayer).filter(Boolean);
+        if (courtPlayers.length !== 4) {
+          alert((courtIndex + 1) + " 號場本場排場有無效的玩家。");
+          return;
+        }
+
+        newCourts[courtIndex] = courtPlayers;
+        courtPlayers.forEach(p => { if (p) p.games++; });
+        registerCourtsPairs([courtPlayers]);
+        updatedAny = true;
       }
 
-      if (!resultCourts[0]) {
-        alert("本場 1 號場人數不足 4 人。");
+      if (!updatedAny) {
+        alert("請至少為一個場地排滿 4 人再套用本場排場。");
         return;
       }
 
-      currentCourts = resultCourts;
-      currentCourts.flat().forEach(p => { if (p) p.games++; });
-      registerCourtsPairs(currentCourts);
+      currentCourts = newCourts;
       round++;
       renderRoundLabel();
       renderPlayers();
       updateStats();
       renderMatches(currentCourts, getQueuedCourtsAsPlayers());
+      fillManualFromCurrent(currentCourts);
       saveState();
     }
 
-    // ---------- 下一場上場：逐場地判斷 ----------
+    // ---------- 下一場上場 ----------
     function nextRoundFromQueue() {
       const selects = Array.from(document.querySelectorAll(".manual-next-select"));
       const idToPlayer = id => players.find(p => String(p.id) === String(id));
@@ -833,7 +854,7 @@
       let changed = false;
 
       for (let courtIndex = 0; courtIndex < 2; courtIndex++) {
-        // 先看 queue，有沒有 4 個 id
+        // 先看 queue
         let ids = (queuedCourts[courtIndex] || []).filter(Boolean);
 
         // 若 queue 不足 4 個，改用目前選單
@@ -845,10 +866,7 @@
             .filter(v => v !== "");
         }
 
-        // 這個場地：0 人 => 不動
         if (ids.length === 0) continue;
-
-        // 若不是 4 人，就視為無效
         if (ids.length !== 4) continue;
 
         const set = new Set(ids);
@@ -857,14 +875,13 @@
         const courtPlayers = ids.map(idToPlayer).filter(Boolean);
         if (courtPlayers.length !== 4) continue;
 
-        // 套用這個場地
         newCourts[courtIndex] = courtPlayers;
         courtPlayers.forEach(p => { if (p) p.games++; });
         registerCourtsPairs([courtPlayers]);
         changed = true;
 
-        // 清空這個場地的 queue & 選單
-        if (queuedCourts[courtIndex]) queuedCourts[courtIndex] = [];
+        // 清空 queue & 選單
+        queuedCourts[courtIndex] = [];
         const start = courtIndex * 4;
         const end = start + 4;
         selects.slice(start, end).forEach(sel => sel.value = "");
@@ -886,7 +903,7 @@
       saveState();
     }
 
-    // ---------- 儲存下一場預約（可單獨各場地） ----------
+    // ---------- 儲存下一場預約 ----------
     function saveNextManualSchedule() {
       const selects = Array.from(document.querySelectorAll(".manual-next-select"));
       const courtIds = [[], []];
@@ -905,7 +922,7 @@
         courtIds[courtIndex] = ids;
       }
 
-      // 檢查跨場地是否有重複
+      // 檢查跨場地重複
       const allIds = [...courtIds[0], ...courtIds[1]];
       const setAll = new Set(allIds);
       if (setAll.size !== allIds.length) {
@@ -913,7 +930,6 @@
         return;
       }
 
-      // 套用到 queuedCourts
       queuedCourts = [];
       for (let i = 0; i < 2; i++) {
         if (courtIds[i].length === 4) {
