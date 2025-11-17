@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
-  <title>羽球排場小幫手（16人 / 2場地）</title>
+  <title>羽揍人（16人 / 2場地）</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- 手機加入主畫面設定 -->
@@ -335,8 +335,9 @@
 
       <h2>手動排場（本場）</h2>
       <div class="note">
-        直接在這裡選好這一輪要上場的人，按「套用本場排場」。<br/>
-        每個場地可以「0 人」（不變）或「4 人」（只更新該場地）。
+        這裡的下拉是「排下一輪要上場的人」。<br/>
+        每個場地可以「0 人」（不變）或「4 人」（只更新該場地）。<br/>
+        一旦套用成功，下方下拉會全部清空，避免重複加上場次數。
       </div>
 
       <div id="manualContainer">
@@ -388,7 +389,7 @@
 
   <script>
     const NUM_PLAYERS = 16;
-    const STORAGE_KEY = "badminton_state_v11";
+    const STORAGE_KEY = "badminton_state_v12";
 
     let players = [];
     let round = 0;          // 0 表示尚未開始
@@ -467,6 +468,7 @@
       renderPlayers();
       renderRoundLabel();
       initManualOptions();
+      clearManualSelects();
       updateStats();
       renderMatches(currentCourts, getQueuedCourtsAsPlayers());
       resetManualNextFromQueue();
@@ -528,6 +530,7 @@
           if (!p.active) p.rest = false;
           renderPlayers();
           initManualOptions();
+          clearManualSelects();
           updateStats();
           resetManualNextFromQueue();
           saveState();
@@ -749,13 +752,8 @@
       });
     }
 
-    function fillManualFromCurrent(courts) {
-      const selects = document.querySelectorAll(".manual-select");
-      selects.forEach(sel => (sel.value = ""));
-      const flat = courts.flat();
-      flat.forEach((p, idx) => {
-        if (idx < selects.length) selects[idx].value = String(p.id);
-      });
+    function clearManualSelects() {
+      document.querySelectorAll(".manual-select").forEach(sel => sel.value = "");
     }
 
     function resetManualNextFromQueue() {
@@ -841,7 +839,7 @@
       renderPlayers();
       updateStats();
       renderMatches(currentCourts, getQueuedCourtsAsPlayers());
-      fillManualFromCurrent(currentCourts);
+      clearManualSelects();       // 套用後清空
       saveState();
     }
 
@@ -898,7 +896,7 @@
       renderPlayers();
       updateStats();
       renderMatches(currentCourts, getQueuedCourtsAsPlayers());
-      fillManualFromCurrent(currentCourts);
+      clearManualSelects();        // 這裡也順便清空本場排場
       resetManualNextFromQueue();
       saveState();
     }
