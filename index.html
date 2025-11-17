@@ -4,44 +4,66 @@
   <meta charset="UTF-8" />
   <title>羽球排場小幫手（16人 / 2場地）</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- 手機加入主畫面相關（之後可以搭配 icon 圖檔） -->
+  <meta name="theme-color" content="#1c7ed6" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="羽球排場" />
+  <!-- 之後可上傳 icon-192.png 到同一個資料夾 -->
+  <link rel="icon" href="icon-192.png" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+
   <style>
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       margin: 0;
       padding: 16px;
-      background: #f5f5f5;
+      background: radial-gradient(circle at top left, #e7f5ff, #f8f9fa);
     }
     h1 {
       font-size: 20px;
       text-align: center;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
+      color: #1c7ed6;
+    }
+    .subtitle {
+      text-align: center;
+      font-size: 11px;
+      color: #868e96;
+      margin-bottom: 10px;
     }
     .controls {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
       justify-content: center;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
     }
     button {
       padding: 8px 12px;
-      border-radius: 6px;
+      border-radius: 999px;
       border: none;
       cursor: pointer;
-      background: #2f80ed;
+      background: #1c7ed6;
       color: #fff;
       font-size: 14px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
     }
     button.secondary {
-      background: #828282;
+      background: #495057;
     }
     button:active {
-      opacity: 0.8;
+      transform: translateY(1px);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+      opacity: 0.9;
     }
     .layout {
       display: flex;
       flex-direction: column;
       gap: 16px;
+      max-width: 1100px;
+      margin: 0 auto;
     }
     @media (min-width: 900px) {
       .layout {
@@ -51,13 +73,14 @@
     }
     .card {
       background: #fff;
-      border-radius: 10px;
+      border-radius: 16px;
       padding: 12px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
     }
     .card h2 {
-      font-size: 16px;
+      font-size: 15px;
       margin: 0 0 8px;
+      color: #343a40;
     }
     table {
       width: 100%;
@@ -70,7 +93,7 @@
       text-align: center;
     }
     th {
-      background: #fafafa;
+      background: #f1f3f5;
       position: sticky;
       top: 0;
       z-index: 1;
@@ -84,28 +107,36 @@
       gap: 8px;
     }
     .court-card {
-      border: 1px solid #eee;
-      border-radius: 8px;
-      padding: 8px;
+      border-radius: 14px;
+      padding: 10px;
+      background: linear-gradient(135deg, #e7f5ff, #f1f3f5);
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.03);
     }
     .court-title {
-      font-weight: bold;
+      font-weight: 600;
       margin-bottom: 4px;
       font-size: 14px;
+      color: #1971c2;
     }
     .teams {
       display: flex;
       justify-content: space-between;
       font-size: 14px;
       margin-top: 4px;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
     }
     .pill {
       display: inline-block;
-      padding: 2px 6px;
+      padding: 4px 7px;
       border-radius: 999px;
-      background: #f2f2f2;
+      background: #fff;
       font-size: 12px;
       margin-right: 4px;
+      border: 1px solid rgba(0,0,0,0.04);
+      min-width: 40px;
+      text-align: center;
     }
     .manual-grid {
       display: grid;
@@ -118,44 +149,63 @@
     select {
       width: 100%;
       padding: 3px 4px;
-      border-radius: 4px;
-      border: 1px solid #ccc;
+      border-radius: 6px;
+      border: 1px solid #ced4da;
       font-size: 12px;
+      background: #f8f9fa;
     }
     .round-label {
       font-size: 14px;
       margin-bottom: 4px;
+      color: #495057;
     }
     .note {
       font-size: 11px;
-      color: #777;
+      color: #868e96;
     }
     .name-input {
       width: 95%;
       padding: 2px 4px;
       font-size: 12px;
-      border-radius: 4px;
-      border: 1px solid #ddd;
+      border-radius: 6px;
+      border: 1px solid #dee2e6;
       box-sizing: border-box;
+    }
+    .stats {
+      text-align: center;
+      font-size: 11px;
+      color: #495057;
+      margin-bottom: 8px;
+    }
+    .badge-chip {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: #f1f3f5;
+      font-size: 11px;
+      color: #495057;
+      margin-left: 4px;
     }
   </style>
 </head>
 <body>
   <h1>羽球排場小幫手（16人 / 2場地）</h1>
+  <div class="subtitle">支援自動排場、手動微調、記錄上場次數，資料會自動存在這台裝置</div>
 
   <div class="controls">
-    <button id="autoBtn">自動排下一輪</button>
-    <button id="manualBtn" class="secondary">套用手動排場</button>
-    <button id="resetBtn" class="secondary">重置玩家與統計</button>
+    <button id="autoBtn">⚙ 自動排下一輪</button>
+    <button id="manualBtn" class="secondary">✋ 套用手動排場</button>
+    <button id="resetBtn" class="secondary">🧹 重置玩家與統計</button>
   </div>
+
+  <div id="statsBar" class="stats"></div>
 
   <div class="layout">
     <!-- 左側：玩家狀態 -->
     <div class="card" style="flex: 1 1 0;">
       <h2>玩家列表（1～16號）</h2>
       <div class="note">
-        名字欄可以輸入今天來打的名字；<br>
-        勾選「啟用」代表有來；勾「休息」代表這一輪不排進場。
+        名字欄輸入今天來打的名字；勾「啟用」代表有來；勾「休息」代表這一輪不排進場。
       </div>
       <div style="max-height: 360px; overflow-y: auto; margin-top: 6px;">
         <table>
@@ -186,7 +236,7 @@
       <hr style="margin: 12px 0;" />
 
       <h2>手動排場（可改人）</h2>
-      <div class="note">選好人員後按上方「套用手動排場」。重複選到同一個人系統會警告。</div>
+      <div class="note">先用上面的自動排，再在這裡換人，最後按「套用手動排場」。重複選到同一個人系統會警告。</div>
 
       <div id="manualContainer">
         <div style="margin-top: 6px; font-weight: bold;">1 號場</div>
@@ -210,15 +260,16 @@
 
   <script>
     const NUM_PLAYERS = 16;
-    const STORAGE_KEY = "badminton_state_v1";
+    const STORAGE_KEY = "badminton_state_v2";
 
     let players = [];
     let round = 1;
+    // pairCounts: 記錄兩個人當隊友過幾次，用來避免老是同一組
+    let pairCounts = {};
 
-    // --- 儲存 / 載入狀態 ---
-
+    // ---- localStorage 儲存 / 載入 ----
     function saveState() {
-      const state = { players, round };
+      const state = { players, round, pairCounts };
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       } catch (e) {
@@ -250,6 +301,11 @@
         } else {
           round = 1;
         }
+
+        pairCounts = state.pairCounts && typeof state.pairCounts === "object"
+          ? state.pairCounts
+          : {};
+
         return true;
       } catch (e) {
         console.warn("讀取 localStorage 失敗，改用預設：", e);
@@ -257,8 +313,7 @@
       }
     }
 
-    // --- 初始化新的 Session ---
-
+    // ---- 初始化新的 Session ----
     function setupNewSession() {
       players = [];
       for (let i = 1; i <= NUM_PLAYERS; i++) {
@@ -271,6 +326,7 @@
         });
       }
       round = 1;
+      pairCounts = {};
       saveState();
       renderAll();
     }
@@ -280,10 +336,36 @@
       renderRoundLabel();
       clearMatches();
       initManualOptions();
+      updateStats();
     }
 
-    // --- UI Render ---
+    // ---- 小工具：pair 計數 ----
+    function pairKey(a, b) {
+      const id1 = a.id < b.id ? a.id : b.id;
+      const id2 = a.id < b.id ? b.id : a.id;
+      return id1 + "-" + id2;
+    }
 
+    function getPairCount(a, b) {
+      const key = pairKey(a, b);
+      return pairCounts[key] || 0;
+    }
+
+    function addPairCount(a, b) {
+      const key = pairKey(a, b);
+      pairCounts[key] = (pairCounts[key] || 0) + 1;
+    }
+
+    function registerCourtsPairs(courts) {
+      courts.forEach(court => {
+        if (court.length === 4) {
+          addPairCount(court[0], court[1]);
+          addPairCount(court[2], court[3]);
+        }
+      });
+    }
+
+    // ---- UI Render ----
     function renderPlayers() {
       const tbody = document.getElementById("playerBody");
       tbody.innerHTML = "";
@@ -321,6 +403,7 @@
           }
           renderPlayers();
           initManualOptions();
+          updateStats();
           saveState();
         });
         tdActive.appendChild(activeCheckbox);
@@ -333,6 +416,7 @@
         restCheckbox.disabled = !p.active;
         restCheckbox.addEventListener("change", () => {
           p.rest = restCheckbox.checked;
+          updateStats();
           saveState();
         });
         tdRest.appendChild(restCheckbox);
@@ -388,12 +472,69 @@
             </span>
           `;
           card.appendChild(t1);
+
+          const info = document.createElement("div");
+          info.className = "note";
+          info.textContent = "系統會盡量避免同一組隊友一直重複。";
+          card.appendChild(info);
         }
         area.appendChild(card);
       });
     }
 
-    // --- 排場邏輯 ---
+    function updateStats() {
+      const total = players.length;
+      const active = players.filter(p => p.active).length;
+      const resting = players.filter(p => p.active && p.rest).length;
+      const canPlay = players.filter(p => p.active && !p.rest).length;
+      const statsBar = document.getElementById("statsBar");
+      statsBar.innerHTML =
+        `總人數 ${total}，啟用 ${active}，目前可上場 ${canPlay}，本輪休息 ${resting}` +
+        `<span class="badge-chip">第 ${round} 輪</span>`;
+    }
+
+    // ---- 排場邏輯 ----
+
+    // 給 4 個人，找出「兩兩配對」時隊友重複次數最少的組合
+    function makeCourtWithBestPairs(group) {
+      if (group.length < 4) return group.slice();
+
+      const [a, b, c, d] = group;
+      const options = [
+        [[a, b], [c, d]],
+        [[a, c], [b, d]],
+        [[a, d], [b, c]]
+      ];
+
+      function score(opt) {
+        const [[x1, x2], [y1, y2]] = opt;
+        return getPairCount(x1, x2) + getPairCount(y1, y2);
+      }
+
+      let best = options[0];
+      let bestScore = score(best);
+      for (let i = 1; i < options.length; i++) {
+        const sc = score(options[i]);
+        if (sc < bestScore) {
+          bestScore = sc;
+          best = options[i];
+        }
+      }
+      return [best[0][0], best[0][1], best[1][0], best[1][1]];
+    }
+
+    function buildCourtsFromSelected(selected) {
+      const courts = [];
+      if (selected.length >= 4) {
+        const g1 = selected.slice(0, 4);
+        courts.push(makeCourtWithBestPairs(g1));
+      }
+      if (selected.length >= 8) {
+        const g2 = selected.slice(4, 8);
+        courts.push(makeCourtWithBestPairs(g2));
+      }
+      return courts;
+    }
 
     function autoSchedule() {
       const available = players.filter(p => p.active && !p.rest);
@@ -411,21 +552,20 @@
       const needed = Math.min(available.length, 8); // 最多兩場
       const selected = available.slice(0, needed);
 
-      const courts = [];
-      if (needed >= 4) {
-        courts.push(selected.slice(0, 4));
-      }
-      if (needed >= 8) {
-        courts.push(selected.slice(4, 8));
-      }
+      const courts = buildCourtsFromSelected(selected);
 
-      selected.forEach(p => p.games++);
+      // 更新上場次數 & 隊友配對次數
+      courts.flat().forEach(p => {
+        if (p) p.games++;
+      });
+      registerCourtsPairs(courts);
 
       renderMatches(courts);
       renderPlayers();
       round++;
       renderRoundLabel();
       fillManualFromCurrent(courts);
+      updateStats();
       saveState();
     }
 
@@ -483,12 +623,12 @@
       const courts = [];
 
       const court1 = chosenIds.slice(0, 4).map(idToPlayer).filter(Boolean);
-      if (court1.length === 4) courts.push(court1);
+      if (court1.length === 4) courts.push(makeCourtWithBestPairs(court1));
 
       const court2Ids = chosenIds.slice(4, 8);
       if (court2Ids.length === 4) {
         const court2 = court2Ids.map(idToPlayer).filter(Boolean);
-        if (court2.length === 4) courts.push(court2);
+        if (court2.length === 4) courts.push(makeCourtWithBestPairs(court2));
       }
 
       if (courts.length === 0) {
@@ -499,16 +639,17 @@
       courts.flat().forEach(p => {
         if (p) p.games++;
       });
+      registerCourtsPairs(courts);
 
       renderMatches(courts);
       renderPlayers();
       round++;
       renderRoundLabel();
+      updateStats();
       saveState();
     }
 
-    // --- 事件綁定 & 啟動 ---
-
+    // ---- 事件綁定 & 啟動 ----
     document.getElementById("autoBtn").addEventListener("click", autoSchedule);
     document.getElementById("manualBtn").addEventListener("click", applyManualSchedule);
     document.getElementById("resetBtn").addEventListener("click", () => {
@@ -520,7 +661,6 @@
       setupNewSession();
     });
 
-    // 啟動：先試著從 localStorage 載入，沒有就新開
     (function start() {
       const loaded = loadState();
       if (!loaded) {
