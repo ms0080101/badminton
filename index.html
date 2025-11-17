@@ -39,6 +39,13 @@
       justify-content: center;
       margin-bottom: 8px;
     }
+    .section-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-start;
+      margin: 4px 0 8px;
+    }
     button {
       padding: 8px 12px;
       border-radius: 999px;
@@ -329,11 +336,8 @@
   <h1>羽球排場小幫手（16人 / 2場地）</h1>
   <div class="subtitle">全部手動排場，本場與下一場預約分開管理，可只更新其中一個場地</div>
 
+  <!-- 頂部只留重置 -->
   <div class="controls">
-    <button id="manualBtn" class="secondary">✋ 套用本場排場</button>
-    <button id="nextCourt1Btn" class="secondary">▶ 1 號場下一場上場</button>
-    <button id="nextCourt2Btn" class="secondary">▶ 2 號場下一場上場</button>
-    <button id="saveNextBtn" class="secondary">💾 儲存下一場預約</button>
     <button id="resetBtn" class="secondary">🧹 重置玩家與統計</button>
   </div>
 
@@ -404,6 +408,11 @@
         </div>
       </div>
 
+      <!-- 手動排場專用按鈕 -->
+      <div class="section-controls">
+        <button id="manualBtn" class="secondary">✋ 套用本場排場</button>
+      </div>
+
       <hr style="margin: 12px 0;" />
 
       <h2>下一場預約排場</h2>
@@ -430,12 +439,19 @@
           <select class="manual-next-select" data-slot="n8"></select>
         </div>
       </div>
+
+      <!-- 下一場預約專用按鈕 -->
+      <div class="section-controls">
+        <button id="nextCourt1Btn" class="secondary">▶ 1 號場下一場上場</button>
+        <button id="nextCourt2Btn" class="secondary">▶ 2 號場下一場上場</button>
+        <button id="saveNextBtn" class="secondary">💾 儲存下一場預約</button>
+      </div>
     </div>
   </div>
 
   <script>
     const NUM_PLAYERS = 16;
-    const STORAGE_KEY = "badminton_state_v14";
+    const STORAGE_KEY = "badminton_state_v15";
 
     let players = [];
     let round = 0;          // 0 表示尚未開始
