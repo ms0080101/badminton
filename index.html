@@ -10,15 +10,13 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="羽球排場" />
+
   <!-- 網站 favicon（一般瀏覽器用） -->
   <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-
-<!-- Android / PWA 高解析 icon -->
+  <!-- Android / PWA 高解析 icon -->
   <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
-
-<!-- iPhone / iPad 主畫面專用 icon -->
+  <!-- iPhone / iPad 主畫面專用 icon -->
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
-
 
   <style>
     body {
@@ -380,8 +378,7 @@
       <div class="match-area" id="matchArea"></div>
 
       <div class="note" style="margin-top: 8px;">
-        下方「球場圖」可投影在螢幕上：顯示每個場地本場＆下一場的上場人員。<br/>
-        若只有排一個場地，第二個場地不會顯示任何名字，只會寫「尚未排滿 4 人」。
+        下方「球場圖」可投影在螢幕上：顯示每個場地本場＆下一場的上場人員。
       </div>
       <div id="boardView" class="board"></div>
 
@@ -394,7 +391,7 @@
       <div class="note">
         這裡的下拉是「排下一輪要上場的人」。<br/>
         每個場地可以「0 人」（不變）或「4 人」（只更新該場地）。<br/>
-        一旦套用成功，下方下拉會全部清空，避免重複加上場次數。
+        ⚠ 若 1 號場與 2 號場本場都已經排好 4 人，又同時排了 8 個人按下「套用本場排場」，系統會跳出防呆提示。
       </div>
 
       <div id="manualContainer">
@@ -746,12 +743,8 @@
         labelNext.textContent = "下一場";
         b.appendChild(labelNext);
 
-        if (!showNextForThisCourt || next.length < 4) {
-          const empty = document.createElement("div");
-          empty.className = "court-empty-text";
-          empty.textContent = "尚未排滿 4 人";
-          b.appendChild(empty);
-        } else {
+        // ⬇ 這裡改掉：如果沒有滿 4 人，就什麼都不顯示（不再顯示「尚未排滿 4 人」）
+        if (showNextForThisCourt && next.length === 4) {
           const layoutNext = document.createElement("div");
           layoutNext.className = "court-layout next";
 
@@ -894,20 +887,39 @@
       return result;
     }
 
-    // ---------- 套用本場排場：逐場地處理 ----------
+    // ---------- 套用本場排場：逐場地處理（含防呆） ----------
     function applyManualSchedule() {
       const selects = Array.from(document.querySelectorAll(".manual-select"));
       const idToPlayer = id => players.find(p => String(p.id) === String(id));
-
       const newCourts = currentCourts.slice();
       let updatedAny = false;
 
+      // 先把手動要排的人讀出來（兩個場地各自的 0 或 4 人）
+      const manualIds = [[], []];
       for (let courtIndex = 0; courtIndex < 2; courtIndex++) {
         const start = courtIndex * 4;
         const end = start + 4;
         const ids = selects.slice(start, end)
           .map(sel => sel.value)
           .filter(v => v !== "");
+        manualIds[courtIndex] = ids;
+      }
+
+      // 防呆：如果 1、2 號場本場都已經有排場，且手動又同時排滿兩場（8 人），直接拒絕
+      const c1Has = Array.isArray(currentCourts[0]) && currentCourts[0].length > 0;
+      const c2Has = Array.isArray(currentCourts[1]) && currentCourts[1].length > 0;
+      if (c1Has && c2Has && manualIds[0].length === 4 && manualIds[1].length === 4) {
+        alert(
+          "目前 1 號場與 2 號場本場都已經有人在打，無法同時套用本場排場。\n\n" +
+          "請先讓其中一個場地結束（或只排其中一個場地），\n" +
+          "或改用「下一場預約」＋「下一場上場」的方式。"
+        );
+        return;
+      }
+
+      // 逐場地檢查 & 套用
+      for (let courtIndex = 0; courtIndex < 2; courtIndex++) {
+        const ids = manualIds[courtIndex];
 
         if (ids.length === 0) {
           // 這個場地不變
@@ -1082,6 +1094,3 @@
   </script>
 </body>
 </html>
-
-
-
