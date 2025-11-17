@@ -285,11 +285,12 @@
 </head>
 <body>
   <h1>羽球排場小幫手（16人 / 2場地）</h1>
-  <div class="subtitle">全部手動排場，可預約下一輪上場名單，上場次數與隊友搭配仍會統計</div>
+  <div class="subtitle">全部手動排場，本場與下一場預約分開管理，沒有任何自動排程</div>
 
   <div class="controls">
-    <button id="manualBtn" class="secondary">✋ 套用手動排場（本場）</button>
-    <button id="saveNextBtn" class="secondary">💾 儲存下一場排場</button>
+    <button id="manualBtn" class="secondary">✋ 套用本場排場</button>
+    <button id="nextBtn" class="secondary">▶ 下一場上場</button>
+    <button id="saveNextBtn" class="secondary">💾 儲存下一場預約</button>
     <button id="resetBtn" class="secondary">🧹 重置玩家與統計</button>
   </div>
 
@@ -300,7 +301,7 @@
     <div class="card" style="flex: 1 1 0;">
       <h2>玩家列表（1～16號）</h2>
       <div class="note">
-        名字欄輸入今天來打的名字；勾「啟用」代表有來；勾「休息」代表這一輪不排進場。
+        名字欄輸入今天來打的名字；勾「啟用」代表有來；勾「休息」只是標記用，不影響你手動排場。
       </div>
       <div style="max-height: 360px; overflow-y: auto; margin-top: 6px;">
         <table>
@@ -313,9 +314,7 @@
               <th>上場次數</th>
             </tr>
           </thead>
-          <tbody id="playerBody">
-            <!-- 動態產生 -->
-          </tbody>
+          <tbody id="playerBody"></tbody>
         </table>
       </div>
     </div>
@@ -324,24 +323,22 @@
     <div class="card" style="flex: 1.2 1 0;">
       <h2>本輪排場</h2>
       <div class="round-label" id="roundLabel">第 1 輪</div>
-      <div class="match-area" id="matchArea">
-        <!-- 本場排場列表 -->
-      </div>
+      <div class="match-area" id="matchArea"></div>
 
       <div class="note" style="margin-top: 8px;">
         下方「球場圖」可投影在螢幕上：顯示每個場地本場＆下一場的上場人員。<br/>
-        若只有排一個場地，第二個場地不會顯示任何號碼。
+        若只有排一個場地，第二個場地不會顯示任何名字，只會寫「尚未排滿 4 人」。
       </div>
       <div id="boardView" class="board"></div>
 
       <hr style="margin: 12px 0;" />
 
       <h2>手動排場（本場）</h2>
-      <div class="note">直接在這裡選好本場 1 號場 / 2 號場要打的人，按「套用手動排場」即可開始新一輪。</div>
+      <div class="note">直接在這裡選好這一輪要上場的人，按「套用本場排場」即可開始新一輪。</div>
 
       <div id="manualContainer">
         <div style="margin-top: 6px; font-weight: bold;">1 號場</div>
-        <div class="manual-grid" data-court="1">
+        <div class="manual-grid">
           <select class="manual-select" data-slot="1"></select>
           <select class="manual-select" data-slot="2"></select>
           <select class="manual-select" data-slot="3"></select>
@@ -349,7 +346,7 @@
         </div>
 
         <div style="margin-top: 6px; font-weight: bold;">2 號場</div>
-        <div class="manual-grid" data-court="2">
+        <div class="manual-grid">
           <select class="manual-select" data-slot="5"></select>
           <select class="manual-select" data-slot="6"></select>
           <select class="manual-select" data-slot="7"></select>
@@ -359,10 +356,10 @@
 
       <hr style="margin: 12px 0;" />
 
-      <h2>下一場預約排場（可選）</h2>
+      <h2>下一場預約排場</h2>
       <div class="note">
         想先預約下一輪的名單，可以在這裡排。<br/>
-        儲存後，上方「下一場」會顯示預約；下次按「套用手動排場」時，會優先照這裡的預約上場。
+        儲存後，上方「下一場」會顯示預約；按「下一場上場」時，會把預約的人整組搬到本場。
       </div>
 
       <div id="manualNextContainer">
@@ -387,24 +384,18 @@
 
   <script>
     const NUM_PLAYERS = 16;
-    const STORAGE_KEY = "badminton_state_v8";
+    const STORAGE_KEY = "badminton_state_v9";
 
     let players = [];
     let round = 1;
     let pairCounts = {};
-    // queuedCourts: [[id,id,id,id], [id,id,id,id]] 作為下一輪預約
-    let queuedCourts = [];
-    // lastCourts: 上一輪真正在打的場次（玩家物件）
-    let lastCourts = [];
+    let currentCourts = []; // [[player,player,player,player], ...]
+    let queuedCourts = [];  // [[id,id,id,id], ...]
 
-    // ---- localStorage 儲存 / 載入 ----
+    // ---------- localStorage ----------
     function saveState() {
-      const state = { players, round, pairCounts, queuedCourts };
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      } catch (e) {
-        console.warn("無法儲存到 localStorage：", e);
-      }
+      const state = { players, round, pairCounts, queuedCourts, currentCourtsIds: currentCourts.map(c => c.map(p => p.id)) };
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
     }
 
     function loadState() {
@@ -430,14 +421,19 @@
         pairCounts = state.pairCounts && typeof state.pairCounts === "object" ? state.pairCounts : {};
         queuedCourts = Array.isArray(state.queuedCourts) ? state.queuedCourts : [];
 
+        const idsCourts = Array.isArray(state.currentCourtsIds) ? state.currentCourtsIds : [];
+        currentCourts = idsCourts.map(courtIds =>
+          courtIds
+            .map(id => players.find(p => p.id === id))
+            .filter(Boolean)
+        );
+
         return true;
       } catch (e) {
-        console.warn("讀取 localStorage 失敗，改用預設：", e);
         return false;
       }
     }
 
-    // ---- 初始化 ----
     function setupNewSession() {
       players = [];
       for (let i = 1; i <= NUM_PLAYERS; i++) {
@@ -451,8 +447,8 @@
       }
       round = 1;
       pairCounts = {};
+      currentCourts = [];
       queuedCourts = [];
-      lastCourts = [];
       saveState();
       renderAll();
     }
@@ -460,35 +456,32 @@
     function renderAll() {
       renderPlayers();
       renderRoundLabel();
-      clearMatches();
       initManualOptions();
       updateStats();
+      renderMatches(currentCourts, getQueuedCourtsAsPlayers());
       resetManualNextFromQueue();
     }
 
-    // ---- pair 統計 ----
+    // ---------- pair 統計 (只做記錄) ----------
     function pairKey(a, b) {
       const id1 = a.id < b.id ? a.id : b.id;
       const id2 = a.id < b.id ? b.id : a.id;
       return id1 + "-" + id2;
     }
-    function getPairCount(a, b) {
-      return pairCounts[pairKey(a, b)] || 0;
-    }
     function addPairCount(a, b) {
-      const key = pairKey(a, b);
-      pairCounts[key] = (pairCounts[key] || 0) + 1;
+      const k = pairKey(a, b);
+      pairCounts[k] = (pairCounts[k] || 0) + 1;
     }
     function registerCourtsPairs(courts) {
-      courts.forEach(court => {
-        if (court.length === 4) {
-          addPairCount(court[0], court[1]);
-          addPairCount(court[2], court[3]);
+      courts.forEach(c => {
+        if (c.length === 4) {
+          addPairCount(c[0], c[1]);
+          addPairCount(c[2], c[3]);
         }
       });
     }
 
-    // ---- UI ----
+    // ---------- UI ----------
     function renderPlayers() {
       const tbody = document.getElementById("playerBody");
       tbody.innerHTML = "";
@@ -517,11 +510,11 @@
         tr.appendChild(tdName);
 
         const tdActive = document.createElement("td");
-        const activeCheckbox = document.createElement("input");
-        activeCheckbox.type = "checkbox";
-        activeCheckbox.checked = p.active;
-        activeCheckbox.addEventListener("change", () => {
-          p.active = activeCheckbox.checked;
+        const chkA = document.createElement("input");
+        chkA.type = "checkbox";
+        chkA.checked = p.active;
+        chkA.addEventListener("change", () => {
+          p.active = chkA.checked;
           if (!p.active) p.rest = false;
           renderPlayers();
           initManualOptions();
@@ -529,20 +522,20 @@
           resetManualNextFromQueue();
           saveState();
         });
-        tdActive.appendChild(activeCheckbox);
+        tdActive.appendChild(chkA);
         tr.appendChild(tdActive);
 
         const tdRest = document.createElement("td");
-        const restCheckbox = document.createElement("input");
-        restCheckbox.type = "checkbox";
-        restCheckbox.checked = p.rest;
-        restCheckbox.disabled = !p.active;
-        restCheckbox.addEventListener("change", () => {
-          p.rest = restCheckbox.checked;
+        const chkR = document.createElement("input");
+        chkR.type = "checkbox";
+        chkR.checked = p.rest;
+        chkR.disabled = !p.active;
+        chkR.addEventListener("change", () => {
+          p.rest = chkR.checked;
           updateStats();
           saveState();
         });
-        tdRest.appendChild(restCheckbox);
+        tdRest.appendChild(chkR);
         tr.appendChild(tdRest);
 
         const tdGames = document.createElement("td");
@@ -557,59 +550,63 @@
       document.getElementById("roundLabel").textContent = "第 " + round + " 輪";
     }
 
-    function clearMatches() {
-      document.getElementById("matchArea").innerHTML =
-        "<div class='note'>尚未排場，請在下方選好本場名單後按「套用手動排場」。</div>";
-      const board = document.getElementById("boardView");
-      if (board) board.innerHTML = "";
+    function updateStats() {
+      const total = players.length;
+      const active = players.filter(p => p.active).length;
+      const resting = players.filter(p => p.active && p.rest).length;
+      const canPlay = players.filter(p => p.active && !p.rest).length;
+      const statsBar = document.getElementById("statsBar");
+      statsBar.innerHTML =
+        `總人數 ${total}，啟用 ${active}，目前可上場 ${canPlay}，標記休息 ${resting}` +
+        `<span class="badge-chip">第 ${round} 輪</span>`;
     }
 
     function renderMatches(courts, nextCourts) {
       const area = document.getElementById("matchArea");
       area.innerHTML = "";
-      courts.forEach((courtPlayers, idx) => {
-        const card = document.createElement("div");
-        card.className = "court-card";
+      if (!courts || courts.length === 0) {
+        area.innerHTML = "<div class='note'>尚未排場，請在下方選好本場名單後按「套用本場排場」，或先使用「下一場預約」搭配「下一場上場」。</div>";
+      } else {
+        courts.forEach((courtPlayers, idx) => {
+          const card = document.createElement("div");
+          card.className = "court-card";
 
-        const title = document.createElement("div");
-        title.className = "court-title";
-        title.textContent = (idx + 1) + " 號場";
-        card.appendChild(title);
+          const title = document.createElement("div");
+          title.className = "court-title";
+          title.textContent = (idx + 1) + " 號場";
+          card.appendChild(title);
 
-        if (courtPlayers.length < 4) {
-          const info = document.createElement("div");
-          info.className = "note";
-          info.textContent = "人數不足 4 人。";
-          card.appendChild(info);
-        } else {
-          const [p1, p2, p3, p4] = courtPlayers;
-          const t1 = document.createElement("div");
-          t1.className = "teams";
-          t1.innerHTML = `
-            <span>
-              <span class="pill">${p1.name}</span>
-              <span class="pill">${p2.name}</span>
-            </span>
-            <span>VS</span>
-            <span>
-              <span class="pill">${p3.name}</span>
-              <span class="pill">${p4.name}</span>
-            </span>
-          `;
-          card.appendChild(t1);
-        }
-        area.appendChild(card);
-      });
+          if (courtPlayers.length < 4) {
+            const info = document.createElement("div");
+            info.className = "note";
+            info.textContent = "人數不足 4 人。";
+            card.appendChild(info);
+          } else {
+            const [p1, p2, p3, p4] = courtPlayers;
+            const t1 = document.createElement("div");
+            t1.className = "teams";
+            t1.innerHTML = `
+              <span>
+                <span class="pill">${p1.name}</span>
+                <span class="pill">${p2.name}</span>
+              </span>
+              <span>VS</span>
+              <span>
+                <span class="pill">${p3.name}</span>
+                <span class="pill">${p4.name}</span>
+              </span>
+            `;
+            card.appendChild(t1);
+          }
+          area.appendChild(card);
+        });
+      }
 
-      // 球場圖
       const board = document.getElementById("boardView");
-      if (!board) return;
       board.innerHTML = "";
-
-      const maxCourts = courts.length || nextCourts.length;
+      const maxCourts = Math.max(courts.length, nextCourts.length, 2); // 最多顯示 2 場
       for (let i = 0; i < maxCourts; i++) {
         const current = courts[i] || [];
-        // 若本輪只有一個場地，第二場不顯示下一場名單
         const showNextForThisCourt = (courts.length === 0) || (i < courts.length);
         const next = showNextForThisCourt ? (nextCourts[i] || []) : [];
 
@@ -696,108 +693,16 @@
       }
     }
 
-    function updateStats() {
-      const total = players.length;
-      const active = players.filter(p => p.active).length;
-      const resting = players.filter(p => p.active && p.rest).length;
-      const canPlay = players.filter(p => p.active && !p.rest).length;
-      const statsBar = document.getElementById("statsBar");
-      statsBar.innerHTML =
-        `總人數 ${total}，啟用 ${active}，目前可上場 ${canPlay}，本輪休息 ${resting}` +
-        `<span class="badge-chip">第 ${round} 輪</span>`;
-    }
-
-    // ---- 排場演算法（只用在隊友組合＋下一場建議） ----
-    function makeCourtWithBestPairs(group) {
-      if (group.length < 4) return group.slice();
-      const [a, b, c, d] = group;
-      const options = [
-        [[a, b], [c, d]],
-        [[a, c], [b, d]],
-        [[a, d], [b, c]]
-      ];
-      function score(opt) {
-        const [[x1, x2], [y1, y2]] = opt;
-        return getPairCount(x1, x2) + getPairCount(y1, y2);
-      }
-      let best = options[0];
-      let bestScore = score(best);
-      for (let i = 1; i < options.length; i++) {
-        const sc = score(options[i]);
-        if (sc < bestScore) {
-          bestScore = sc;
-          best = options[i];
-        }
-      }
-      return [best[0][0], best[0][1], best[1][0], best[1][1]];
-    }
-
-    function buildCourtsFromSelected(selected) {
-      const courts = [];
-      if (selected.length >= 4) {
-        const g1 = selected.slice(0, 4);
-        courts.push(makeCourtWithBestPairs(g1));
-      }
-      if (selected.length >= 8) {
-        const g2 = selected.slice(4, 8);
-        courts.push(makeCourtWithBestPairs(g2));
-      }
-      return courts;
-    }
-
-    function sortByGamesThenId(list) {
-      list.sort((a, b) => {
-        if (a.games !== b.games) return a.games - b.games;
-        return a.id - b.id;
-      });
-    }
-
-    function computeNextCourtsPreview(currentCourts) {
-      const sim = players.map(p => ({ ...p }));
-      currentCourts.flat().forEach(p => {
-        const sp = sim.find(x => x.id === p.id);
-        if (sp) sp.games++;
-      });
-
-      let available = sim.filter(p => p.active && !p.rest);
-      if (available.length < 4) return [];
-      sortByGamesThenId(available);
-      const needed = Math.min(available.length, 8);
-      const selected = available.slice(0, needed);
-
-      const mapToReal = sp => players.find(p => p.id === sp.id) || sp;
-      const selectedReal = selected.map(mapToReal);
-      return buildCourtsFromSelected(selectedReal);
-    }
-
-    function getNextCourtsFromQueue() {
-      if (!queuedCourts || queuedCourts.length === 0) return [];
-      return queuedCourts.map(ids =>
-        ids
-          .map(id => players.find(p => p.id === id))
-          .filter(p => p && p.active && !p.rest)
-      ).filter(court => court.length > 0);
-    }
-
-    function getNextCourtsToShow(currentCourts) {
-      if (queuedCourts && queuedCourts.length > 0) {
-        return getNextCourtsFromQueue();
-      } else {
-        return computeNextCourtsPreview(currentCourts);
-      }
-    }
-
-    // ---- 手動排本場 ----
+    // ---------- 選單初始化 ----------
     function initManualOptions() {
-      // 本場
-      const selects = document.querySelectorAll(".manual-select");
-      selects.forEach(sel => {
+      const manualSelects = document.querySelectorAll(".manual-select");
+      manualSelects.forEach(sel => {
         const current = sel.value;
         sel.innerHTML = "";
-        const emptyOpt = document.createElement("option");
-        emptyOpt.value = "";
-        emptyOpt.textContent = "空";
-        sel.appendChild(emptyOpt);
+        const empty = document.createElement("option");
+        empty.value = "";
+        empty.textContent = "空";
+        sel.appendChild(empty);
 
         players.forEach(p => {
           if (!p.active) return;
@@ -809,15 +714,14 @@
         if (current) sel.value = current;
       });
 
-      // 下一場預約
       const nextSelects = document.querySelectorAll(".manual-next-select");
       nextSelects.forEach(sel => {
         const current = sel.value;
         sel.innerHTML = "";
-        const emptyOpt = document.createElement("option");
-        emptyOpt.value = "";
-        emptyOpt.textContent = "空";
-        sel.appendChild(emptyOpt);
+        const empty = document.createElement("option");
+        empty.value = "";
+        empty.textContent = "空";
+        sel.appendChild(empty);
 
         players.forEach(p => {
           if (!p.active) return;
@@ -834,10 +738,8 @@
       const selects = document.querySelectorAll(".manual-select");
       selects.forEach(sel => (sel.value = ""));
       const flat = courts.flat();
-      flat.forEach((p, index) => {
-        if (index < selects.length) {
-          selects[index].value = String(p.id);
-        }
+      flat.forEach((p, idx) => {
+        if (idx < selects.length) selects[idx].value = String(p.id);
       });
     }
 
@@ -845,91 +747,101 @@
       const selects = Array.from(document.querySelectorAll(".manual-next-select"));
       selects.forEach(sel => (sel.value = ""));
       if (!queuedCourts || queuedCourts.length === 0) return;
-      const flatIds = queuedCourts.flat();
-      for (let i = 0; i < Math.min(flatIds.length, selects.length); i++) {
-        selects[i].value = String(flatIds[i]);
+      const ids = queuedCourts.flat();
+      for (let i = 0; i < Math.min(ids.length, selects.length); i++) {
+        selects[i].value = String(ids[i]);
       }
     }
 
+    // ---------- 取得 queuedCourts 的玩家版 ----------
+    function getQueuedCourtsAsPlayers() {
+      if (!queuedCourts || queuedCourts.length === 0) return [];
+      return queuedCourts.map(ids =>
+        ids
+          .map(id => players.find(p => p.id === id))
+          .filter(Boolean)
+      );
+    }
+
+    // ---------- 按鈕邏輯 ----------
+
+    // 套用本場排場
     function applyManualSchedule() {
-      let courts = [];
+      const selects = Array.from(document.querySelectorAll(".manual-select"));
+      const chosenIds = selects.map(sel => sel.value).filter(v => v !== "");
 
-      // 1. 若有預約下一場，優先使用預約名單作為本場
-      if (queuedCourts && queuedCourts.length > 0) {
-        const fromQueue = getNextCourtsFromQueue();
-        if (fromQueue.length === 0) {
-          alert("預約的下一場名單已失效（有人取消啟用或改為休息），請重新預約或手動排本場。");
-          queuedCourts = [];
-        } else {
-          courts = fromQueue;
-          queuedCourts = [];        // 用掉就清空
-          resetManualNextFromQueue();
-          fillManualFromCurrent(courts); // 順便同步到「本場手動」選單
-        }
+      const set = new Set(chosenIds);
+      if (set.size !== chosenIds.length) {
+        alert("本場排場中，同一個人被選到兩次以上。");
+        return;
+      }
+      if (![4, 8].includes(chosenIds.length)) {
+        alert("本場請排 4 或 8 個人（1 或 2 個場地）。");
+        return;
       }
 
-      // 2. 沒有預約，就用下方本場手動選單
-      if (courts.length === 0) {
-        const selects = Array.from(document.querySelectorAll(".manual-select"));
-        const chosenIds = selects
-          .map(sel => sel.value)
-          .filter(v => v !== "");
+      const idToPlayer = id => players.find(p => String(p.id) === String(id));
 
-        const set = new Set(chosenIds);
-        if (set.size !== chosenIds.length) {
-          alert("同一個人被選到兩次以上，請檢查本場排場。");
-          return;
-        }
+      const c1 = chosenIds.slice(0, 4).map(idToPlayer).filter(Boolean);
+      const resultCourts = [];
+      if (c1.length === 4) resultCourts.push(c1);
 
-        if (chosenIds.length < 4) {
-          alert("至少要選 4 個人才能排一場。");
-          return;
-        }
-
-        const idToPlayer = id => players.find(p => String(p.id) === String(id));
-        const c1 = chosenIds.slice(0, 4).map(idToPlayer).filter(Boolean);
-        if (c1.length === 4) courts.push(makeCourtWithBestPairs(c1));
-
-        const c2Ids = chosenIds.slice(4, 8);
-        if (c2Ids.length === 4) {
-          const c2 = c2Ids.map(idToPlayer).filter(Boolean);
-          if (c2.length === 4) courts.push(makeCourtWithBestPairs(c2));
-        }
-
-        if (courts.length === 0) {
-          alert("本場人數不足。");
-          return;
-        }
+      if (chosenIds.length === 8) {
+        const c2 = chosenIds.slice(4, 8).map(idToPlayer).filter(Boolean);
+        if (c2.length === 4) resultCourts.push(c2);
       }
 
-      // 3. 更新統計
-      courts.flat().forEach(p => { if (p) p.games++; });
-      registerCourtsPairs(courts);
-      lastCourts = courts;
+      if (resultCourts.length === 0) {
+        alert("本場人數不足。");
+        return;
+      }
 
-      // 4. 計算下一場要顯示什麼（預約優先，其次系統建議）
-      const nextCourts = getNextCourtsToShow(courts);
-
-      renderMatches(courts, nextCourts);
-      renderPlayers();
+      currentCourts = resultCourts;
+      currentCourts.flat().forEach(p => { if (p) p.games++; });
+      registerCourtsPairs(currentCourts);
       round++;
       renderRoundLabel();
+      renderPlayers();
       updateStats();
+      renderMatches(currentCourts, getQueuedCourtsAsPlayers());
       saveState();
     }
 
-    // ---- 儲存下一場預約 ----
+    // 下一場上場（用預約的人）
+    function nextRoundFromQueue() {
+      if (!queuedCourts || queuedCourts.length === 0) {
+        alert("沒有預約的下一場名單，請先在「下一場預約排場」選人並儲存。");
+        return;
+      }
+      const courtsPlayers = getQueuedCourtsAsPlayers();
+      if (courtsPlayers.length === 0 || courtsPlayers[0].length < 4) {
+        alert("預約名單不足 4 人，請檢查下一場預約排場。");
+        return;
+      }
+
+      currentCourts = courtsPlayers;
+      currentCourts.flat().forEach(p => { if (p) p.games++; });
+      registerCourtsPairs(currentCourts);
+      queuedCourts = [];
+      round++;
+      renderRoundLabel();
+      renderPlayers();
+      updateStats();
+      renderMatches(currentCourts, []);
+      resetManualNextFromQueue();
+      fillManualFromCurrent(currentCourts);
+      saveState();
+    }
+
+    // 儲存下一場預約
     function saveNextManualSchedule() {
       const selects = Array.from(document.querySelectorAll(".manual-next-select"));
-      const chosenIds = selects
-        .map(sel => sel.value)
-        .filter(v => v !== "");
+      const chosenIds = selects.map(sel => sel.value).filter(v => v !== "");
 
       if (chosenIds.length === 0) {
         queuedCourts = [];
         resetManualNextFromQueue();
-        const nextCourts = getNextCourtsToShow(lastCourts);
-        renderMatches(lastCourts, nextCourts);
+        renderMatches(currentCourts, []);
         saveState();
         alert("已清除下一場預約排場。");
         return;
@@ -954,25 +866,20 @@
       queuedCourts = result;
       saveState();
       resetManualNextFromQueue();
-
-      const nextCourts = getNextCourtsToShow(lastCourts);
-      renderMatches(lastCourts, nextCourts);
-
+      renderMatches(currentCourts, getQueuedCourtsAsPlayers());
       alert("已儲存下一場預約排場。");
     }
 
-    // ---- 事件綁定 & 啟動 ----
+    // ---------- 事件綁定 ----------
     document.getElementById("manualBtn").addEventListener("click", applyManualSchedule);
+    document.getElementById("nextBtn").addEventListener("click", nextRoundFromQueue);
     document.getElementById("saveNextBtn").addEventListener("click", saveNextManualSchedule);
     document.getElementById("resetBtn").addEventListener("click", () => {
-      try {
-        localStorage.removeItem(STORAGE_KEY);
-      } catch (e) {
-        console.warn("清除 localStorage 失敗：", e);
-      }
+      try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
       setupNewSession();
     });
 
+    // ---------- 啟動 ----------
     (function start() {
       const loaded = loadState();
       if (!loaded) {
