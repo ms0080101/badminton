@@ -5,12 +5,11 @@
   <title>羽球排場小幫手（16人 / 2場地）</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- 手機加入主畫面相關（之後可以搭配 icon 圖檔） -->
+  <!-- 手機加入主畫面設定 -->
   <meta name="theme-color" content="#1c7ed6" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="羽球排場" />
-  <!-- 之後可上傳 icon-192.png 到同一個資料夾 -->
   <link rel="icon" href="icon-192.png" />
   <link rel="apple-touch-icon" href="icon-192.png" />
 
@@ -186,11 +185,107 @@
       color: #495057;
       margin-left: 4px;
     }
+
+    /* 場地大圖模式（可以投影用） */
+    .board {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 10px;
+    }
+    @media (min-width: 900px) {
+      .board {
+        flex-direction: row;
+      }
+    }
+    .court-board {
+      flex: 1;
+      background: #0b7285;
+      color: #fff;
+      border-radius: 16px;
+      padding: 10px 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    }
+    .court-board-title {
+      font-weight: 600;
+      text-align: center;
+      margin-bottom: 4px;
+      font-size: 14px;
+    }
+    .court-label {
+      font-size: 12px;
+      margin: 4px 0;
+      text-align: left;
+      opacity: 0.9;
+    }
+    .court-layout {
+      position: relative;
+      background: #18663d;
+      border-radius: 12px;
+      border: 2px solid #f8f9fa;
+      height: 140px;
+      margin-bottom: 4px;
+      overflow: hidden;
+    }
+    .court-line-outer {
+      position: absolute;
+      inset: 6px;
+      border: 2px solid rgba(248, 249, 250, 0.7);
+      border-radius: 8px;
+    }
+    .court-line-middle {
+      position: absolute;
+      top: 50%;
+      left: 6px;
+      right: 6px;
+      height: 2px;
+      background: rgba(248, 249, 250, 0.9);
+    }
+    .court-line-center {
+      position: absolute;
+      left: 50%;
+      top: 6px;
+      bottom: 6px;
+      width: 2px;
+      background: rgba(248, 249, 250, 0.6);
+    }
+    .court-net {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 4px;
+      margin-top: -2px;
+      background: linear-gradient(to right, rgba(255,255,255,0.9), rgba(255,255,255,0.6));
+      box-shadow: 0 0 4px rgba(0,0,0,0.3);
+    }
+    .player-slot {
+      position: absolute;
+      width: 48%;
+      text-align: center;
+      font-size: 13px;
+      color: #fff;
+      padding: 2px 3px;
+    }
+    .slot-1 { top: 10px; left: 2%; }
+    .slot-2 { top: 10px; right: 2%; }
+    .slot-3 { bottom: 10px; left: 2%; }
+    .slot-4 { bottom: 10px; right: 2%; }
+
+    .court-layout.next {
+      background: #115f72;
+    }
+    .court-empty-text {
+      font-size: 12px;
+      text-align: center;
+      margin: 6px 0 2px;
+      opacity: 0.8;
+    }
   </style>
 </head>
 <body>
   <h1>羽球排場小幫手（16人 / 2場地）</h1>
-  <div class="subtitle">支援自動排場、手動微調、記錄上場次數，資料會自動存在這台裝置</div>
+  <div class="subtitle">自動排場＋手動微調，記錄上場次數，還可以看到下一場誰上場</div>
 
   <div class="controls">
     <button id="autoBtn">⚙ 自動排下一輪</button>
@@ -230,8 +325,13 @@
       <h2>本輪排場</h2>
       <div class="round-label" id="roundLabel">第 1 輪</div>
       <div class="match-area" id="matchArea">
-        <!-- 自動排場結果 -->
+        <!-- 自動排場結果（卡片列表） -->
       </div>
+
+      <div class="note" style="margin-top: 8px;">
+        下方「球場圖」可投影在螢幕上：顯示每個場地本場＆下一場的上場人員。
+      </div>
+      <div id="boardView" class="board"></div>
 
       <hr style="margin: 12px 0;" />
 
@@ -260,11 +360,11 @@
 
   <script>
     const NUM_PLAYERS = 16;
-    const STORAGE_KEY = "badminton_state_v2";
+    const STORAGE_KEY = "badminton_state_v5";
 
     let players = [];
     let round = 1;
-    // pairCounts: 記錄兩個人當隊友過幾次，用來避免老是同一組
+    // 記錄隊友配對次數，避免老是同一組
     let pairCounts = {};
 
     // ---- localStorage 儲存 / 載入 ----
@@ -437,9 +537,12 @@
     function clearMatches() {
       document.getElementById("matchArea").innerHTML =
         "<div class='note'>尚未排場，請按「自動排下一輪」或使用下方手動排場。</div>";
+      const board = document.getElementById("boardView");
+      if (board) board.innerHTML = "";
     }
 
-    function renderMatches(courts) {
+    function renderMatches(courts, nextCourts) {
+      // 上方列表
       const area = document.getElementById("matchArea");
       area.innerHTML = "";
       courts.forEach((courtPlayers, idx) => {
@@ -472,14 +575,103 @@
             </span>
           `;
           card.appendChild(t1);
-
-          const info = document.createElement("div");
-          info.className = "note";
-          info.textContent = "系統會盡量避免同一組隊友一直重複。";
-          card.appendChild(info);
         }
         area.appendChild(card);
       });
+
+      // 下方：兩塊球場圖，含本場＋下一場
+      const board = document.getElementById("boardView");
+      if (!board) return;
+      board.innerHTML = "";
+
+      const maxCourts = Math.max(courts.length, nextCourts.length);
+      for (let i = 0; i < maxCourts; i++) {
+        const current = courts[i] || [];
+        const next = nextCourts[i] || [];
+
+        const b = document.createElement("div");
+        b.className = "court-board";
+
+        const title = document.createElement("div");
+        title.className = "court-board-title";
+        title.textContent = (i + 1) + " 號場";
+        b.appendChild(title);
+
+        // 本場
+        const labelNow = document.createElement("div");
+        labelNow.className = "court-label";
+        labelNow.textContent = "本場";
+        b.appendChild(labelNow);
+
+        const layoutNow = document.createElement("div");
+        layoutNow.className = "court-layout";
+
+        const outerNow = document.createElement("div");
+        outerNow.className = "court-line-outer";
+        const midNow = document.createElement("div");
+        midNow.className = "court-line-middle";
+        const centerNow = document.createElement("div");
+        centerNow.className = "court-line-center";
+        const netNow = document.createElement("div");
+        netNow.className = "court-net";
+
+        layoutNow.appendChild(outerNow);
+        layoutNow.appendChild(midNow);
+        layoutNow.appendChild(centerNow);
+        layoutNow.appendChild(netNow);
+
+        for (let s = 0; s < 4; s++) {
+          const cell = document.createElement("div");
+          cell.className = "player-slot slot-" + (s + 1);
+          const p = current[s];
+          cell.textContent = p ? p.name : "—";
+          layoutNow.appendChild(cell);
+        }
+
+        b.appendChild(layoutNow);
+
+        // 下一場
+        const labelNext = document.createElement("div");
+        labelNext.className = "court-label";
+        labelNext.textContent = "下一場";
+        b.appendChild(labelNext);
+
+        if (next.length < 4) {
+          const empty = document.createElement("div");
+          empty.className = "court-empty-text";
+          empty.textContent = "尚未排滿 4 人";
+          b.appendChild(empty);
+        } else {
+          const layoutNext = document.createElement("div");
+          layoutNext.className = "court-layout next";
+
+          const outerNext = document.createElement("div");
+          outerNext.className = "court-line-outer";
+          const midNext = document.createElement("div");
+          midNext.className = "court-line-middle";
+          const centerNext = document.createElement("div");
+          centerNext.className = "court-line-center";
+          const netNext = document.createElement("div");
+          netNext.className = "court-net";
+
+          layoutNext.appendChild(outerNext);
+          layoutNext.appendChild(midNext);
+          layoutNext.appendChild(centerNext);
+          layoutNext.appendChild(netNext);
+
+          for (let s = 0; s < 4; s++) {
+            const cell = document.createElement("div");
+            cell.className = "player-slot slot-" + (s + 1);
+            const p = next[s];
+            cell.textContent = p ? p.name : "—";
+            layoutNext.appendChild(cell);
+          }
+
+          b.appendChild(layoutNext);
+        }
+
+        board.appendChild(b);
+      }
     }
 
     function updateStats() {
@@ -495,7 +687,6 @@
 
     // ---- 排場邏輯 ----
 
-    // 給 4 個人，找出「兩兩配對」時隊友重複次數最少的組合
     function makeCourtWithBestPairs(group) {
       if (group.length < 4) return group.slice();
 
@@ -536,6 +727,36 @@
       return courts;
     }
 
+    function sortByGamesThenId(list) {
+      list.sort((a, b) => {
+        if (a.games !== b.games) return a.games - b.games;
+        return a.id - b.id;
+      });
+    }
+
+    // 預測下一場（不改動真實 players，只模擬）
+    function computeNextCourtsPreview(currentCourts) {
+      // 模擬一份 players
+      const sim = players.map(p => ({ ...p }));
+      // 在模擬中，先加上這一輪的上場次數
+      currentCourts.flat().forEach(p => {
+        const sp = sim.find(x => x.id === p.id);
+        if (sp) sp.games++;
+      });
+
+      let available = sim.filter(p => p.active && !p.rest);
+      if (available.length < 4) return [];
+
+      sortByGamesThenId(available);
+      const needed = Math.min(available.length, 8);
+      const selected = available.slice(0, needed);
+
+      // 選出 id 對應回真實 players（因為 pairCounts 是用真實 id 計的）
+      const mapToReal = sp => players.find(p => p.id === sp.id) || sp;
+      const selectedReal = selected.map(mapToReal);
+      return buildCourtsFromSelected(selectedReal);
+    }
+
     function autoSchedule() {
       const available = players.filter(p => p.active && !p.rest);
       if (available.length < 4) {
@@ -543,24 +764,23 @@
         return;
       }
 
-      // 依上場次數少的優先、再依編號
-      available.sort((a, b) => {
-        if (a.games !== b.games) return a.games - b.games;
-        return a.id - b.id;
-      });
+      sortByGamesThenId(available);
 
       const needed = Math.min(available.length, 8); // 最多兩場
       const selected = available.slice(0, needed);
 
       const courts = buildCourtsFromSelected(selected);
 
-      // 更新上場次數 & 隊友配對次數
+      // 先更新真實上場次數 & 隊友配對次數
       courts.flat().forEach(p => {
         if (p) p.games++;
       });
       registerCourtsPairs(courts);
 
-      renderMatches(courts);
+      // 再模擬下一輪會是誰（不改真實資料）
+      const nextCourts = computeNextCourtsPreview(courts);
+
+      renderMatches(courts, nextCourts);
       renderPlayers();
       round++;
       renderRoundLabel();
@@ -636,12 +856,16 @@
         return;
       }
 
+      // 更新真實資料
       courts.flat().forEach(p => {
         if (p) p.games++;
       });
       registerCourtsPairs(courts);
 
-      renderMatches(courts);
+      // 預測下一場
+      const nextCourts = computeNextCourtsPreview(courts);
+
+      renderMatches(courts, nextCourts);
       renderPlayers();
       round++;
       renderRoundLabel();
