@@ -1073,9 +1073,23 @@
     document.getElementById("nextCourt2Btn").addEventListener("click", () => nextRoundFromQueue(1));
     document.getElementById("saveNextBtn").addEventListener("click", saveNextManualSchedule);
     document.getElementById("resetBtn").addEventListener("click", () => {
-      try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
-      setupNewSession();
-    });
+       const ok = confirm(
+         "⚠️ 確定要【重置玩家與統計】嗎？\n\n" +
+         "・所有玩家名字、啟用/休息狀態\n" +
+         "・上場次數、下一場預約\n" +
+         "都會清空，這個動作無法復原！"
+    );
+
+  if (!ok) return; // 使用者按取消就直接離開
+
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch (e) {}
+
+  alert("已重置，開始新的紀錄。");
+  setupNewSession();
+});
+
 
     // ---------- 啟動 ----------
     (function start() {
@@ -1089,4 +1103,5 @@
   </script>
 </body>
 </html>
+
 
