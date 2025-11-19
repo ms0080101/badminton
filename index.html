@@ -294,12 +294,6 @@
     .court-layout.next {
       background: #115f72;
     }
-    .court-empty-text {
-      font-size: 12px;
-      text-align: center;
-      margin: 6px 0 2px;
-      opacity: 0.8;
-    }
 
     /* 下一場預約總覽：用醒目的背景顏色 */
     .next-summary {
@@ -353,7 +347,8 @@
     <div class="card" style="flex: 1 1 0;">
       <h2>玩家列表（1～16號）</h2>
       <div class="note">
-        名字欄輸入今天來打的名字；勾「啟用」代表有來；勾「休息」只是標記用，不影響你手動排場。
+        名字欄輸入今天來打的名字；勾「啟用」代表有來；勾「休息」只是標記用，不影響你手動排場。<br>
+        名字欄支援「常用名字清單」，輸入過的名字下次可以直接選。
       </div>
       <div style="max-height: 360px; overflow-y: auto; margin-top: 6px;">
         <table>
@@ -453,17 +448,78 @@
     </div>
   </div>
 
+  <!-- 常用名字清單用 datalist -->
+  <datalist id="nameSuggestions"></datalist>
+
   <script>
     const NUM_PLAYERS = 16;
     const STORAGE_KEY = "badminton_state_v15";
+    const NAME_LIB_KEY = "badminton_name_library_v1";
 
     let players = [];
     let round = 0;          // 0 表示尚未開始
     let pairCounts = {};
     let currentCourts = []; // [[player,player,player,player], ...]
     let queuedCourts = [];  // [ [id,id,id,id] | [], [id,id,id,id] | [] ]
+    let nameLibrary = [];   // 常用名字清單
 
-    // ---------- localStorage ----------
+    // ---------- 常用名字清單 ----------
+    function loadNameLibrary() {
+      try {
+        const raw = localStorage.getItem(NAME_LIB_KEY);
+        if (!raw) {
+          nameLibrary = [];
+          return;
+        }
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) {
+          nameLibrary = arr.filter(v => typeof v === "string" && v.trim() !== "");
+        } else {
+          nameLibrary = [];
+        }
+      } catch (e) {
+        nameLibrary = [];
+      }
+    }
+
+    function saveNameLibrary() {
+      try {
+        localStorage.setItem(NAME_LIB_KEY, JSON.stringify(nameLibrary));
+      } catch (e) {}
+    }
+
+    function isDefaultNumberName(name, id) {
+      const trimmed = name.trim();
+      const pattern = new RegExp("^" + id + "號$");
+      return pattern.test(trimmed);
+    }
+
+    function addNameToLibrary(name, id) {
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      if (isDefaultNumberName(trimmed, id)) return; // 不收「1號/2號…」
+
+      const idx = nameLibrary.indexOf(trimmed);
+      if (idx !== -1) {
+        nameLibrary.splice(idx, 1);
+      }
+      nameLibrary.unshift(trimmed); // 新的放最前面
+      if (nameLibrary.length > 30) {
+        nameLibrary = nameLibrary.slice(0, 30);
+      }
+      saveNameLibrary();
+      renderNameDatalist();
+    }
+
+    function renderNameDatalist() {
+      const dl = document.getElementById("nameSuggestions");
+      if (!dl) return;
+      dl.innerHTML = nameLibrary
+        .map(n => `<option value="${n}"></option>`)
+        .join("");
+    }
+
+    // ---------- localStorage（主要狀態） ----------
     function saveState() {
       const state = {
         players,
@@ -539,6 +595,7 @@
       renderMatches(currentCourts, getQueuedCourtsAsPlayers());
       renderNextSummary();
       resetManualNextFromQueue();
+      renderNameDatalist();
     }
 
     // ---------- 搭檔統計 ----------
@@ -560,7 +617,7 @@
       });
     }
 
-    // ---------- UI ----------
+    // ---------- UI：玩家列表 ----------
     function renderPlayers() {
       const tbody = document.getElementById("playerBody");
       tbody.innerHTML = "";
@@ -578,9 +635,16 @@
         input.className = "name-input";
         input.value = p.name;
         input.placeholder = p.id + "號";
+        // 🔹 讓 input 使用 datalist（常用名字）
+        input.setAttribute("list", "nameSuggestions");
+
         input.addEventListener("input", () => {
           const v = input.value.trim();
           p.name = v || (p.id + "號");
+          // 更新常用名字清單
+          if (v) {
+            addNameToLibrary(v, p.id);
+          }
           initManualOptions();
           resetManualNextFromQueue();
           renderNextSummary();
@@ -737,9 +801,13 @@
         }
         b.appendChild(layoutNow);
 
-
-        // ⬇ 這裡改掉：如果沒有滿 4 人，就什麼都不顯示（不再顯示「尚未排滿 4 人」）
+        // 下一場（不再顯示「下一場」文字標題，只在有 4 人時畫出來）
         if (showNextForThisCourt && next.length === 4) {
+          const labelNext = document.createElement("div");
+          labelNext.className = "court-label";
+          labelNext.textContent = ""; // 不顯示文字
+          b.appendChild(labelNext);
+
           const layoutNext = document.createElement("div");
           layoutNext.className = "court-layout next";
 
@@ -1073,26 +1141,22 @@
     document.getElementById("nextCourt2Btn").addEventListener("click", () => nextRoundFromQueue(1));
     document.getElementById("saveNextBtn").addEventListener("click", saveNextManualSchedule);
     document.getElementById("resetBtn").addEventListener("click", () => {
-       const ok = confirm(
-         "⚠️ 確定要【重置玩家與統計】嗎？\n\n" +
-         "・所有玩家名字、啟用/休息狀態\n" +
-         "・上場次數、下一場預約\n" +
-         "都會清空，這個動作無法復原！"
-    );
-
-  if (!ok) return; // 使用者按取消就直接離開
-
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-  } catch (e) {}
-
-  alert("已重置，開始新的紀錄。");
-  setupNewSession();
-});
-
+      const ok = confirm(
+        "⚠️ 確定要【重置玩家與統計】嗎？\n\n" +
+        "・所有玩家的名字、啟用/休息狀態\n" +
+        "・上場次數、本場與下一場排場\n\n" +
+        "都會清空，這個動作無法復原！\n\n" +
+        "（常用名字清單會保留）"
+      );
+      if (!ok) return;
+      try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+      alert("已重置，開始新的紀錄。");
+      setupNewSession();
+    });
 
     // ---------- 啟動 ----------
     (function start() {
+      loadNameLibrary();
       const loaded = loadState();
       if (!loaded) {
         setupNewSession();
@@ -1103,5 +1167,3 @@
   </script>
 </body>
 </html>
-
-
